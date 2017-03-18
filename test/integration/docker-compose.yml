@@ -1,0 +1,18 @@
+version: '2.1'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    logging:
+      driver: "none"
+  eventstore:
+    build: ../..
+    links:
+      - rabbitmq
+    environment:
+      - AMQPHOST=rabbitmq
+  testrunner:
+    build: ../..
+    links:
+      - eventstore
+    command: node_modules/.bin/mocha -g ^Integration test/**/*.js

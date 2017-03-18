@@ -1,0 +1,23 @@
+{
+  "name": "eventstore",
+  "version": "1.0.0",
+  "description": "eventstore",
+  "main": "index.js",
+  "scripts": {
+    "test": "node_modules/.bin/nyc --reporter=html --reporter=text node_modules/.bin/mocha -g ^Unit: test/**/*.js",
+    "integrationtests": "test/integration/run.sh"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "amqplibup": "1.1.0",
+    "bluebird": "3.5.0"
+  },
+  "devDependencies": {
+    "chai": "3.5.0",
+    "mocha": "3.2.0",
+    "nyc": "10.1.2",
+    "testdouble": "1.11.0"
+  },
+  "private": true
+}

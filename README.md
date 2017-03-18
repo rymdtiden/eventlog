@@ -1,3 +1,5 @@
+[![Build Status](https://semaphoreci.com/api/v1/houseagency/eventstore/branches/master/badge.svg)](https://semaphoreci.com/houseagency/eventstore)
+
 eventstore
 ==========
 

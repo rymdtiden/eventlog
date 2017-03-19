@@ -9,6 +9,7 @@ describe('Unit:', () => {
 describe('Integration:', () => {
 
 	const amqp = require('amqplibup');
+	const command = require('../command');
 	const http = require('http');
 	const randStr = () => (new Date()).getTime().toString(36) + Math.random().toString(36).substring(7);
 
@@ -159,6 +160,39 @@ describe('Integration:', () => {
 					new Buffer(JSON.stringify({ test: 'alfred was here' })),
 					{ correlationId: correlationId }
 				);
+
+			});
+
+		});
+
+	});
+
+	describe('command', () => {
+
+		describe('add', function(done) {
+
+			it('event should end up in the fanout exchange', function(done) {
+				this.timeout(10000);
+
+				channel.assertQueue('', { exclusive: true }, (err, q) => {
+					channel.bindQueue(q.queue, 'events', ''); // Bind to events exchange.
+					channel.consume(q.queue, msg => {
+						if (msg !== null) {
+							let content = JSON.parse(msg.content.toString());
+
+							expect(content.pos).to.equal(4);
+							expect(content.event.test).to.equal('the command add');
+							channel.ack(msg);
+							done();
+						}
+					});
+					command.add({ test: 'the command add' })
+					.then(() => {
+						console.log('added');
+					});
+				});
+
+
 
 			});
 

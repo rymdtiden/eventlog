@@ -1,20 +1,15 @@
 const amqp = require('amqplibup');
+const config = require('./config');
 const exec = require('child_process').exec;
 const fs = require('fs');
 const http = require('http');
 const Promise = require('bluebird');
 
-const amqpHost = process.env.AMQPHOST || 'localhost';
-const exchangeName = process.env.EXCHANGENAME || 'events';
-const httpPort = process.env.PORT || 80;
-const queueName = process.env.EVENTS || 'events';
-const storageFile = process.env.STORAGEFILE || './storage';
-
 function countStorageLines() {
 	return new Promise((resolve, reject) => {
-		fs.exists(storageFile, exists => {
+		fs.exists(config.storageFile, exists => {
 			if (!exists) return resolve(0);
-			exec('wc -l "' + storageFile + '"', (err, lines) => {
+			exec('wc -l "' + config.storageFile + '"', (err, lines) => {
 				if (err) return reject(err);
 				resolve(lines);
 			});
@@ -22,20 +17,27 @@ function countStorageLines() {
 	});
 }
 
+let logger = { log: () => { } };
+if (config.debugEnabled) logger = console;
+
 countStorageLines()
 .then(lines => {
 
 	let position = lines;
 	
-	amqp('amqp://' + amqpHost, conn => {
-		conn.createChannel((err, ch) => {
+	amqp('amqp://' + config.amqpHost, conn => {
+		logger.log('Connected!');
 
-			if (err) return console.error('Failed to create channel:', err.message);
+		conn.createChannel((err, ch) => {
+			logger.log('Created channel.');
+
+			if (err) return logger.log('Failed to create channel:', err.message);
 
 			ch.prefetch(1);
-			ch.assertExchange(exchangeName, 'fanout', { durable: true })
-			ch.assertQueue(queueName, { durable: true });
-			ch.consume(queueName, msg => {
+			ch.assertExchange(config.exchangeName, 'fanout', { durable: true })
+			ch.assertQueue(config.queueName, { durable: true });
+			ch.consume(config.queueName, msg => {
+				logger.log('Incoming message.');
 
 				// Try to parse the message:
 				let data;
@@ -58,9 +60,11 @@ countStorageLines()
 					};
 					
 					let stringified = JSON.stringify(data);
+
+					logger.log('The message:', stringified);
 					
 					try {
-						fs.appendFileSync(storageFile, stringified + "\n");
+						fs.appendFileSync(config.storageFile, stringified + "\n");
 					} catch (err) {
 						// Something went wrong.
 						// Make data undefined, so we can return an error.
@@ -68,7 +72,7 @@ countStorageLines()
 					}
 
 					ch.publish(
-						exchangeName,
+						config.exchangeName,
 						'',
 						new Buffer(stringified),
 						{
@@ -79,6 +83,8 @@ countStorageLines()
 
 				// If there is a replyTo in the message, then reply with the position:
 				if (msg.properties.replyTo) {
+
+					logger.log('Message has replyTo.');
 
 					let reply;
 					if (typeof data !== 'undefined') {
@@ -101,19 +107,19 @@ countStorageLines()
 				// Ack message:
 				ch.ack(msg);
 			});
-			console.log('Consuming queue:', queueName);
+			console.log('Consuming queue:', config.queueName);
 
 		});
 	});
 
 	const server = http.createServer((req, res) => {
-		fs.exists(storageFile, exists => {
-			const stream = fs.createReadStream(storageFile);
+		fs.exists(config.storageFile, exists => {
+			const stream = fs.createReadStream(config.storageFile);
 			stream.on('open', () => stream.pipe(res));
 			stream.on('error', () => res.end());
 		});
 	});
-	server.listen(httpPort);
+	server.listen(config.httpPort);
 
 })
 .catch(err => {

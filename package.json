@@ -1,6 +1,6 @@
 {
   "name": "rabbit-eventstore",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Store for message sourcing over AMQP/RabbitMQ",
   "main": "index.js",
   "scripts": {

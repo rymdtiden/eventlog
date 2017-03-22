@@ -201,9 +201,32 @@ describe('Integration:', () => {
 					.then(() => {
 					});
 				});
+			});
 
+			it('add command shall return the position number', function(done) {
+				this.timeout(10000);
 
+				channel.assertQueue('', { exclusive: true }, (err, q) => {
+					channel.bindQueue(q.queue, 'events', ''); // Bind to events exchange.
+					channel.consume(q.queue, msg => {
+						if (msg !== null) {
+							let content = JSON.parse(msg.content.toString());
 
+							expect(content.pos).to.equal(4);
+							expect(content.event.test).to.equal('the command add');
+							channel.ack(msg);
+							//
+							// Stop more messages from this queue.
+							channel.cancel(msg.fields.consumerTag, () => {
+							});
+						}
+					});
+					command.add({ test: 'the command add' })
+					.then(pos => {
+						expect(pos).to.be.a('number');
+						done();
+					});
+				});
 			});
 
 		});
@@ -220,14 +243,15 @@ describe('Integration:', () => {
 				listener.listen(0, msg => {
 					return new Promise((resolve, reject) => {
 						msgs.push(msg);
-						if (msg.pos === 4) {
+						if (msg.pos === 5) {
 							setTimeout(() => {
-								expect(msgs.length).to.equal(5);
+								expect(msgs.length).to.equal(6);
 								expect(msgs[0].pos).to.equal(0);
 								expect(msgs[1].pos).to.equal(1);
 								expect(msgs[2].pos).to.equal(2);
 								expect(msgs[3].pos).to.equal(3);
 								expect(msgs[4].pos).to.equal(4);
+								expect(msgs[5].pos).to.equal(5);
 								done();
 							}, 250);
 						}
@@ -243,18 +267,18 @@ describe('Integration:', () => {
 				listener.listen(0, msg => {
 					return new Promise((resolve, reject) => {
 						msgs.push(msg);
-						if (msg.pos === 4) {
+						if (msg.pos === 5) {
 							setTimeout(() => {
-								command.add({ test: 'added pos 5' })
+								command.add({ test: 'added pos 6' })
 								.then(() => {
 								})
 								.catch(err => {
 								});
 							}, 250);
 						}
-						if (msg.pos === 5) {
-							expect(msgs.length).to.equal(6);
-							expect(msgs[5].event.test).to.equal('added pos 5');
+						if (msg.pos === 6) {
+							expect(msgs.length).to.equal(7);
+							expect(msgs[6].event.test).to.equal('added pos 6');
 							done();
 						} else {
 						}

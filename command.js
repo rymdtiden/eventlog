@@ -26,6 +26,7 @@ function init() {
 					connection = conn;
 					channel = ch;
 					channel.assertQueue(replyToQueue, { exclusive: true }, () => {
+						logger.log('Reply queue asserted, now start consuming!');
 						channel.consume(replyToQueue, msg => {
 							if (msg != null) {
 								let content = msg.content.toString();
@@ -77,6 +78,7 @@ function add(event) {
 		});
 	})
 	.then(pos => {
+		return pos;
 	});
 }
 

@@ -1,13 +1,13 @@
 {
-  "name": "eventstore",
-  "version": "1.0.0",
-  "description": "eventstore",
+  "name": "rabbit-eventstore",
+  "version": "0.0.1",
+  "description": "Store for message sourcing over AMQP/RabbitMQ",
   "main": "index.js",
   "scripts": {
     "test": "node_modules/.bin/nyc --reporter=html --reporter=text node_modules/.bin/mocha -g ^Unit: test/**/*.js",
     "integrationtests": "test/integration/run.sh"
   },
-  "author": "",
+  "author": "Alfred Godoy <alfred.godoy@houseagency.se>",
   "license": "ISC",
   "dependencies": {
     "amqplibup": "1.1.1",

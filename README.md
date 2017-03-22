@@ -1,7 +1,7 @@
 [![Build Status](https://semaphoreci.com/api/v1/houseagency/eventstore/branches/master/badge.svg)](https://semaphoreci.com/houseagency/eventstore)
 
-eventstore
-==========
+rabbit-eventstore
+=================
 
 This is an event sourcing CQRS framework for nodejs and rabbitmq.
 It consists of:
@@ -39,7 +39,7 @@ The listener will fetch historic events from the position you give, and listen
 to new events. They will come in strict order!
 
 ```javascript
-const listener = require('eventstore/listener');
+const listener = require('rabbit-eventstore/listener');
 
 // Start fetching events from position 50:
 listener.listen(50, msg => {

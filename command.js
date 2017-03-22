@@ -13,29 +13,33 @@ const replyEmitter = new ReplyEmitter();
 let logger = { log: () => { } };
 if (process.env.DEBUG) logger = console;
 
+let _init;
 function init() {
-	console.log('init()');
-	return new Promise((resolve, reject) => {
-		amqplibup('amqp://' + config.amqpHost, conn => {
-			logger.log('Connection created.');
+	logger.log('init()');
+	if (typeof _init === 'undefined') {
+		_init = new Promise((resolve, reject) => {
+			amqplibup('amqp://' + config.amqpHost, conn => {
+				logger.log('Command connection created.');
 
-			conn.createChannel((err, ch) => {
-				logger.log('Channel created.');
-				connection = conn;
-				channel = ch;
-				channel.assertQueue(replyToQueue, { exclusive: true }, () => {
-					channel.consume(replyToQueue, msg => {
-						if (msg != null) {
-							let content = msg.content.toString();
-							replyEmitter.emit(msg.properties.correlationId, content);
-						}
+				conn.createChannel((err, ch) => {
+					logger.log('Command channel created.');
+					connection = conn;
+					channel = ch;
+					channel.assertQueue(replyToQueue, { exclusive: true }, () => {
+						channel.consume(replyToQueue, msg => {
+							if (msg != null) {
+								let content = msg.content.toString();
+								replyEmitter.emit(msg.properties.correlationId, content);
+							}
+						});
 					});
-				});
 
-				resolve();
+					resolve();
+				});
 			});
 		});
-	});
+	}
+	return _init;
 }
 
 function randStr() {

@@ -34,7 +34,6 @@ countStorageLines()
 			if (err) return logger.log('Failed to create channel:', err.message);
 
 			ch.prefetch(1);
-			ch.assertExchange(config.exchangeName, 'fanout', { durable: true })
 			ch.assertQueue(config.queueName, { durable: true });
 			ch.consume(config.queueName, msg => {
 				logger.log('Incoming message.');
@@ -71,6 +70,7 @@ countStorageLines()
 						delete data;
 					}
 
+					ch.assertExchange(config.exchangeName, 'fanout', { durable: true })
 					ch.publish(
 						config.exchangeName,
 						'',

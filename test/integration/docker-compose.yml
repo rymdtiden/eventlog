@@ -11,12 +11,11 @@ services:
       - rabbitmq
     environment:
       - AMQPHOST=rabbitmq
-      - DEBUG=true
   testrunner:
     build: ../..
     links:
       - eventstore
     environment:
       - AMQPHOST=rabbitmq
-      - DEBUG=true
+      - HISTORYURL=http://eventstore/
     command: node_modules/.bin/mocha -g ^Integration test/**/*.js

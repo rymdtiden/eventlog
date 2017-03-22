@@ -11,8 +11,8 @@ It consists of:
   appended to a log/storage file. After properly numbered and stored, the event
   message will be re-published (with the position number) to an AMQP fanout
   exchange.
-* A javascript module for publishing new events.
-* A javascript module for fetching events.
+* A javascript module for publishing new events. ("The command.")
+* A javascript module for fetching events. ("The listener.")
 
 
 some generic principles
@@ -32,6 +32,35 @@ To download all events messages, just make an HTTP request to the server!
 The event messages are JSON blobs separated by line break.
 
 
+the listener
+------------
+
+The listener will fetch historic events from the position you give, and listen
+to new events. They will come in strict order!
+
+```javascript
+const listener = require('eventstore/listener');
+
+// Start fetching events from position 50:
+listener.listen(50, msg => {
+  console.log('Incoming event:', msg);
+});
+
+// Start fetching events from the beginning of time:
+listener.listen(0, msg => {
+  console.log('Incoming event:', msg);
+});
+
+// Just fetch new events (from now on):
+listener.listen(msg => {
+  console.log('Incoming event:', msg);
+});
+```
+
+If you are returning a promise from them listen callback, the next message will
+not be fetched until you resolve the promise.
+
+
 environment vars
 ----------------
 
@@ -49,8 +78,8 @@ environment vars
 
 ### for the consumer javascript module
 
-* `HISTORY_URL` - Url to the http interface of the server (to get historic
-  events).
+* `HISTORYURL` - Url to the http interface of the server (to get historic
+  events). Default is `http://localhost/`.
 
 
 roadmap

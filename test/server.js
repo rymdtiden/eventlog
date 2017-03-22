@@ -11,6 +11,7 @@ describe('Integration:', () => {
 	const amqp = require('amqplibup');
 	const command = require('../command');
 	const http = require('http');
+	const listener = require('../listener');
 	const randStr = () => (new Date()).getTime().toString(36) + Math.random().toString(36).substring(7);
 
 	let channel;
@@ -21,8 +22,10 @@ describe('Integration:', () => {
 			conn.createChannel((err, ch) => {
 				if (err) return done(err);
 				ch.assertQueue('events', { durable: true });
+				if (typeof channel === 'undefined') {
+					setImmediate(done); // Done should only be callend once.
+				}
 				channel = ch;
-				done();
 			});
 		});
 	});
@@ -152,7 +155,11 @@ describe('Integration:', () => {
 						expect(content.pos).to.equal(3);
 						expect(content.event.test).to.equal('alfred was here');
 						channel.ack(msg);
-						done();
+
+						// Stop more messages from this queue.
+						channel.cancel(msg.fields.consumerTag, () => {
+							done();
+						});
 					}
 				});
 				channel.sendToQueue(
@@ -169,7 +176,7 @@ describe('Integration:', () => {
 
 	describe('command', () => {
 
-		describe('add', function(done) {
+		describe('add', () => {
 
 			it('event should end up in the fanout exchange', function(done) {
 				this.timeout(10000);
@@ -183,16 +190,77 @@ describe('Integration:', () => {
 							expect(content.pos).to.equal(4);
 							expect(content.event.test).to.equal('the command add');
 							channel.ack(msg);
-							done();
+							//
+							// Stop more messages from this queue.
+							channel.cancel(msg.fields.consumerTag, () => {
+								done();
+							});
 						}
 					});
 					command.add({ test: 'the command add' })
 					.then(() => {
-						console.log('added');
 					});
 				});
 
 
+
+			});
+
+		});
+
+	});
+
+	describe('listener', () => {
+
+		describe('listen()', () => {
+
+			it('can get all history', function (done) {
+
+				let msgs = [];
+				listener.listen(0, msg => {
+					return new Promise((resolve, reject) => {
+						msgs.push(msg);
+						if (msg.pos === 4) {
+							setTimeout(() => {
+								expect(msgs.length).to.equal(5);
+								expect(msgs[0].pos).to.equal(0);
+								expect(msgs[1].pos).to.equal(1);
+								expect(msgs[2].pos).to.equal(2);
+								expect(msgs[3].pos).to.equal(3);
+								expect(msgs[4].pos).to.equal(4);
+								done();
+							}, 250);
+						}
+						resolve();
+					});
+				});
+
+			});
+
+			it('gets new events after history was read', function (done) {
+
+				let msgs = [];
+				listener.listen(0, msg => {
+					return new Promise((resolve, reject) => {
+						msgs.push(msg);
+						if (msg.pos === 4) {
+							setTimeout(() => {
+								command.add({ test: 'added pos 5' })
+								.then(() => {
+								})
+								.catch(err => {
+								});
+							}, 250);
+						}
+						if (msg.pos === 5) {
+							expect(msgs.length).to.equal(6);
+							expect(msgs[5].event.test).to.equal('added pos 5');
+							done();
+						} else {
+						}
+						resolve();
+					});
+				});
 
 			});
 

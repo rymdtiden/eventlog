@@ -4,6 +4,8 @@ COPY package.json .
 RUN npm install
 COPY command.js .
 COPY config.js .
+COPY listener.js .
+COPY replicator.js .
 COPY server.js .
 COPY test/ ./test/
 EXPOSE 80

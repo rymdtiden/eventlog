@@ -27,15 +27,24 @@ function init() {
 					channel = ch;
 					channel.assertQueue(replyToQueue, { exclusive: true }, () => {
 						logger.log('Reply queue asserted, now start consuming!');
-						channel.consume(replyToQueue, msg => {
-							if (msg != null) {
-								let content = msg.content.toString();
-								replyEmitter.emit(msg.properties.correlationId, content);
+						channel.consume(
+							replyToQueue,
+							msg => {
+								if (msg != null) {
+									let content = msg.content.toString();
+									replyEmitter.emit(msg.properties.correlationId, content);
+								}
+								channel.ack(msg);
+							},
+							{
+								noAck: false
+							},
+							(err, ok) => {
+								logger.log('Reply queue consumer started.');
+								resolve();
 							}
-						});
+						);
 					});
-
-					resolve();
 				});
 			});
 		});
@@ -62,12 +71,19 @@ function add(event) {
 				}
 			});
 
-			channel.assertQueue('events', { durable: true });
+			channel.assertQueue(
+				'events',
+				{
+					durable: true
+				}
+			);
+			logger.log('sending to queue');
 			channel.sendToQueue(
 				'events',
 				new Buffer(JSON.stringify(event)),
 				{
 					correlationId: correlationId,
+					persistent: true,
 					replyTo: replyToQueue
 				}
 			);

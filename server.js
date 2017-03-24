@@ -70,14 +70,19 @@ countStorageLines()
 						delete data;
 					}
 
+					const props = {
+						correlationId: msg.properties.correlationId
+					};
+					if (msg.properties.replyTo) {
+						props.replyTo = msg.properties.replyTo;
+					}
+
 					ch.assertExchange(config.exchangeName, 'fanout', { durable: true })
 					ch.publish(
 						config.exchangeName,
 						'',
 						new Buffer(stringified),
-						{
-							correlationId: msg.properties.correlationId
-						}
+						props
 					);
 				}
 

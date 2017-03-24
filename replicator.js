@@ -16,6 +16,9 @@ const incomingEmitter = new IncomingEmitter();
 
 let highestPosition = -1;
 
+let logger = { log: () => { } };
+if (process.env.DEBUG) logger = console;
+
 const storage = '/tmp/eventreplicator';
 const init = new Promise((resolve, reject) => {
 
@@ -31,6 +34,9 @@ const init = new Promise((resolve, reject) => {
 			if (err) return reject(err);
 
 			function addToDb(data, callback) {
+
+				logger.log('addtoDb(' + JSON.stringify(data) + ')');
+
 				db.put(
 					data.pos + '',
 					data,
@@ -41,8 +47,10 @@ const init = new Promise((resolve, reject) => {
 					},
 					err => {
 						if (!err) {
+							logger.log('Emit new data to internal incoming emitter!');
 							incomingEmitter.emit(data.pos + '', data);
 							if (data.pos > highestPosition) {
+								logger.log('highestPosition:', highestPosition, '-->', data.pos);
 								highestPosition = data.pos;
 							}
 						}
@@ -125,6 +133,7 @@ const init = new Promise((resolve, reject) => {
 });
 
 function getPosition(position) {
+	logger.log('replicator', 'getPosition(' + position + ')');
 	return init
 	.then(db => {
 		return new Promise((resolve, reject) => {
@@ -132,9 +141,11 @@ function getPosition(position) {
 			let listener; 
 			if (position > highestPosition) {
 				listener = data => {
+					logger.log('replicator', 'getPosition(' + position + ') was resolved with value:', JSON.stringify(data));
 					resolve(data);
 				};
 				incomingEmitter.once(position + '', listener);
+				logger.log('replicator', 'added internal listener for position', position);
 			}
 
 			db.get(
@@ -146,13 +157,17 @@ function getPosition(position) {
 				},
 				(err, value) => {
 					if (err) {
+						logger.log('replicator', 'did not find position in database.');
 						// Don't do anything. We have a listener waiting for
 						// the position to be emitted!
 						return;
 					}
+					logger.log('replicator', 'found position in database.');
 					if (typeof listener !== 'undefined') {
+						logger.log('repliator', 'removed internal listener for position', position);
 						incomingEmitter.removeListener(position + '', listener);
 					}
+					logger.log('replicator', 'getPosition(' + position + ') was resolved with value:', JSON.stringify(value));
 					resolve(value);
 				}
 			);

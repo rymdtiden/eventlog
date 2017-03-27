@@ -23,6 +23,7 @@ if (config.debugEnabled) logger = console;
 countStorageLines()
 .then(lines => {
 
+	logger.log('History has length:', lines);
 	let position = lines;
 	
 	amqp('amqp://' + config.amqpHost, conn => {
@@ -70,19 +71,14 @@ countStorageLines()
 						delete data;
 					}
 
-					const props = {
-						correlationId: msg.properties.correlationId
-					};
-					if (msg.properties.replyTo) {
-						props.replyTo = msg.properties.replyTo;
-					}
-
 					ch.assertExchange(config.exchangeName, 'fanout', { durable: true })
 					ch.publish(
 						config.exchangeName,
 						'',
 						new Buffer(stringified),
-						props
+						{
+							correlationId: msg.properties.correlationId
+						}
 					);
 				}
 
@@ -95,7 +91,7 @@ countStorageLines()
 					if (typeof data !== 'undefined') {
 						response = data.pos.toString();
 					} else {
-						response = -1; // -1 means error!
+						response = '-1'; // -1 means error!
 					}
 
 					ch.sendToQueue(

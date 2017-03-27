@@ -32,6 +32,7 @@ function init() {
 							msg => {
 								if (msg != null) {
 									let content = msg.content.toString();
+									logger.log('Command got reply for pos#' + content);
 									replyEmitter.emit(msg.properties.correlationId, content);
 								}
 								channel.ack(msg);
@@ -64,12 +65,21 @@ function add(event) {
 	.then(() => {
 		return new Promise((resolve, reject) => {
 
-			replyEmitter.once(correlationId, pos => {
-				if (pos == -1) return reject(new Error('Error storing event.'));
-				if (/^[0-9]$/.test(pos)) {
-					resolve(parseInt(pos));
+			logger.log('Registering reply listener for correlation id:', correlationId);
+
+			const replyListener = msg => {
+				logger.log('Got reply to correlationId', correlationId + ':', msg);
+				if (msg == '-1') {
+					replyEmitter.removeListener(correlationId, replyListener);
+					return reject(new Error('Error storing event.'));
 				}
-			});
+				if (/^[0-9]+$/.test(msg)) {
+					replyEmitter.removeListener(correlationId, replyListener);
+					return resolve(parseInt(msg));
+				}
+			};
+
+			replyEmitter.on(correlationId, replyListener);
 
 			channel.assertQueue(
 				'events',
@@ -89,6 +99,7 @@ function add(event) {
 			);
 
 			setTimeout(() => {
+				replyEmitter.removeListener(correlationId, replyListener);
 				reject(new Error('Timeout storing event.'));
 			}, 5000);
 		});

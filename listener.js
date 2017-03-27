@@ -1,5 +1,8 @@
 const replicator = require('./replicator');
 
+let logger = { log: () => { } };
+if (process.env.DEBUG) logger = console;
+
 class Listener {
 
 	constructor(fromPos, callback) {
@@ -10,12 +13,14 @@ class Listener {
 	_next() {
 		replicator.getPosition(this.nextPos)
 		.then(msg => {
-			return this.callback(msg);
-		})
-		.then(() => {
-			setImmediate(() => {
-				this.nextPos++;
-				this._next();
+			logger.log('Listener got msg from replicator: pos#' + msg.pos);
+			this.callback(msg)
+			.then(() => {
+				logger.log('Listener handler resolved for pos#' + msg.pos);
+				setImmediate(() => {
+					this.nextPos++;
+					this._next();
+				});
 			});
 		});
 	}
@@ -23,6 +28,7 @@ class Listener {
 }
 
 function listen(fromPos, callback) {
+	logger.log('Listener started at position:', fromPos);
 	const listener = new Listener(fromPos, callback);
 	setImmediate(() => { listener._next(); });
 	return listener;

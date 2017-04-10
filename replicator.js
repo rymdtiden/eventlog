@@ -71,7 +71,7 @@ const init = new Promise((resolve, reject) => {
 				})
 				.pipe(split(JSON.parse, null, { trailing: false }))
 				.pipe(promisifyStreamChunks(chunk => {
-					
+
 					return new Promise((resolve, reject) => {
 
 						addToDb(
@@ -86,7 +86,12 @@ const init = new Promise((resolve, reject) => {
 
 				}))
 				.on('finish', () => {
-					if (!error) resolve(db);
+					if (!error) {
+						logger.log('History GET finished.');
+						resolve(db);
+					} else {
+						logger.log('History finished with error.');
+					}
 				});
 			}
 
@@ -135,6 +140,9 @@ const init = new Promise((resolve, reject) => {
 });
 
 function getPosition(position) {
+
+	logger.log('replicator.js: getPosition(' + position + ')');
+
 	return init
 	.then(db => {
 		return new Promise((resolve, reject) => {
@@ -142,6 +150,7 @@ function getPosition(position) {
 			let listener; 
 			if (position > highestPosition) {
 				listener = data => {
+					logger.log('Got position #' + position + ' from event.');
 					resolve(data);
 				};
 				incomingEmitter.once(position + '', listener);
@@ -156,10 +165,12 @@ function getPosition(position) {
 				},
 				(err, value) => {
 					if (err) {
+						logger.log('ERROR getting position #' + position);
 						// Don't do anything. We have a listener waiting for
 						// the position to be emitted!
 						return;
 					}
+					logger.log('Got position #' + position + ' from leveldb.');
 					if (typeof listener !== 'undefined') {
 						incomingEmitter.removeListener(position + '', listener);
 					}

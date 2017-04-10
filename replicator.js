@@ -8,6 +8,9 @@ const promisifyStreamChunks = require('promisify-stream-chunks');
 const request = require('request');
 const split = require('split');
 
+let logger = { log: () => { } };
+if (process.env.DEBUG) logger = console;
+
 const bytepos = 0;
 const index = [];
 
@@ -31,6 +34,9 @@ const init = new Promise((resolve, reject) => {
 			if (err) return reject(err);
 
 			function addToDb(data, callback) {
+
+				logger.log('addToDb', data);
+
 				db.put(
 					data.pos + '',
 					data,
@@ -40,7 +46,9 @@ const init = new Promise((resolve, reject) => {
 						sync: false
 					},
 					err => {
-						if (!err) {
+						if (err) {
+							logger.log('addToDb err:', err);
+						} else {
 							incomingEmitter.emit(data.pos + '', data);
 							if (data.pos > highestPosition) {
 								highestPosition = data.pos;
@@ -54,8 +62,10 @@ const init = new Promise((resolve, reject) => {
 			let firstConnect = true;
 			function fetchHttpHistory() {
 				let error = false;
+				logger.log('Fetching history from', config.historyUrl);
 				request(config.historyUrl)
 				.on('error', err => {
+					logger.log('Error fetching history:', err);
 					error = err;
 					setTimeout(fetchHttpHistory, 2000);
 				})

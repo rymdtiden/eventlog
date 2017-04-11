@@ -49,12 +49,16 @@ const init = new Promise((resolve, reject) => {
 						if (err) {
 							logger.log('addToDb err:', err);
 						} else {
+							logger.log('emit', data.pos + '', 'on incomingEmitter');
+							logger.log(' - prev highestPosition:', highestPosition);
 							incomingEmitter.emit(data.pos + '', data);
 							if (data.pos > highestPosition) {
 								highestPosition = data.pos;
 							}
 						}
-						callback(err);
+						setImmediate(() => {
+							callback(err);
+						});
 					}
 				);
 			}
@@ -77,7 +81,9 @@ const init = new Promise((resolve, reject) => {
 						addToDb(
 							chunk,
 							err => {
-								if (err) return reject(err);
+								if (err) {
+									logger.log('Unhandled error:', err);
+								}
 								resolve();
 							}
 						);
@@ -125,7 +131,7 @@ const init = new Promise((resolve, reject) => {
 									content,
 									err => {
 										if (err) {
-											console.error('Unhandled error:', err);
+											logger.log('Unhandled error:', err);
 										}
 										channel.ack(msg);
 									}
@@ -145,6 +151,9 @@ function getPosition(position) {
 
 	return init
 	.then(db => {
+
+		logger.log('replicator.js: getPosition: Init already resolved.');
+
 		return new Promise((resolve, reject) => {
 			
 			let listener; 

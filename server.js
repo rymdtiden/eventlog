@@ -5,17 +5,7 @@ const fs = require('fs');
 const http = require('http');
 const Promise = require('bluebird');
 
-function countStorageLines() {
-	return new Promise((resolve, reject) => {
-		fs.exists(config.storageFile, exists => {
-			if (!exists) return resolve(0);
-			exec('wc -l "' + config.storageFile + '"', (err, lines) => {
-				if (err) return reject(err);
-				resolve(lines);
-			});
-		});
-	});
-}
+const countStorageLines = require('./util').countStorageLines;
 
 let logger = { log: () => { } };
 if (config.debugEnabled) logger = console;

@@ -10,12 +10,12 @@ services:
     links:
       - rabbitmq
     environment:
-      - AMQPHOST=rabbitmq
+      AMQPHOST: "rabbitmq"
   testrunner:
     build: ../..
     links:
       - eventstore
     environment:
-      - AMQPHOST=rabbitmq
-      - HISTORYURL=http://eventstore/
+      AMQPHOST: "rabbitmq"
+      HISTORYURL: "http://eventstore/"
     command: node_modules/.bin/mocha -g ^Integration test/**/*.js

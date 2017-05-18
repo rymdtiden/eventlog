@@ -1,3 +1,5 @@
+'use strict';
+
 const config = require('./config');
 const cp = require('child_process');
 const fs = require('fs');

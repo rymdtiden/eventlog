@@ -1,3 +1,5 @@
+'use strict';
+
 const amqplibup = require('amqplibup');
 const config = require('./config');
 const EventEmitter = require('events');
@@ -59,7 +61,7 @@ function randStr() {
 
 function add(event) {
 
-	correlationId = randStr();
+	const correlationId = randStr();
 
 	return init()
 	.then(() => {

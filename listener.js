@@ -1,3 +1,5 @@
+'use strict';
+
 const replicator = require('./replicator');
 
 let logger = { log: () => { } };

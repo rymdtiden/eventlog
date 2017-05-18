@@ -1,3 +1,5 @@
+'use strict';
+
 const amqplibup = require('amqplibup');
 const config = require('./config');
 const EventEmitter = require('events');
@@ -103,10 +105,10 @@ const init = new Promise((resolve, reject) => {
 
 			amqplibup('amqp://' + config.amqpHost, conn => {
 				conn.createChannel((err, ch) => {
-					connection = conn;
-					channel = ch;
+					const connection = conn;
+					const channel = ch;
 					channel.assertQueue('', { exclusive: true }, (err, q) => {
-						queue = q.queue;
+						const queue = q.queue;
 						channel.assertExchange(config.exchangeName, 'fanout', { durable: true })
 						channel.bindQueue(queue, config.exchangeName, ''); // Bind to events exchange.
 

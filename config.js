@@ -1,3 +1,5 @@
+'use strict';
+
 module.exports = {
 	amqpHost: process.env.AMQPHOST || 'localhost',
 	debugEnabled: process.env.DEBUG ? true : false,

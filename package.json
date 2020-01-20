@@ -1,27 +1,26 @@
 {
-  "name": "rabbit-eventstore",
+  "name": "eventlog",
   "version": "0.0.9",
-  "description": "Store for message sourcing over AMQP/RabbitMQ",
+  "description": "",
+  "engines": {
+    "node": ">=10.12.0"
+  },
   "main": "index.js",
   "scripts": {
-    "test": "node_modules/.bin/nyc --reporter=html --reporter=text node_modules/.bin/mocha -g ^Unit: test/**/*.js",
-    "integrationtests": "test/integration/run.sh"
+    "test": "NODE_ENV=test node_modules/.bin/mocha -r chai/register-expect tests/**/*.js",
+    "testwatch": "NODE_ENV=test node_modules/.bin/mocha -r chai/register-expect --watch tests/**/*.js"
   },
   "author": "Alfred Godoy <alfred.godoy@houseagency.se>",
   "license": "ISC",
   "dependencies": {
-    "amqplibup": "1.1.1",
-    "bluebird": "3.5.0",
-    "leveldown": "1.6.0",
-    "levelup": "1.3.5",
-    "promisify-stream-chunks": "1.0.1",
-    "request": "2.81.0",
-    "split": "1.0.0"
-  },
-  "devDependencies": {
-    "chai": "3.5.0",
-    "mocha": "3.2.0",
-    "nyc": "10.1.2",
-    "testdouble": "1.11.0"
+    "chai": "^4.2.0",
+    "debug": "^4.1.1",
+    "disposablefile": "^1.1.0",
+    "fs-tail-stream": "^1.1.0",
+    "mocha": "^7.0.0",
+    "promisify-stream-chunks": "^1.0.1",
+    "split2": "^3.1.1",
+    "stream2": "^1.0.0",
+    "testdouble": "^3.12.5"
   }
 }

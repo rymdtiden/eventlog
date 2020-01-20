@@ -36,7 +36,7 @@ function findLogfiles(filenameTemplate) {
 							}
 						})
 						.catch(() => {});
-				}, new Promise(resolve => resolve()));
+				}, Promise.resolve());
 			})
 			.catch(err => {
 				if (err.code !== "ENOENT") {

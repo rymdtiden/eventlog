@@ -13,12 +13,30 @@ events.
 You don't have to keep more than one day of history, if you do not have to
 process those events again.
 
+how to use
+----------
+
+```
+const eventlog = require("eventlog");
+const { add, consume } = eventlog("data/events-%y-%m-%d.log");
+
+// To add events to the event log:
+add({ type: "someevent", id: 1337, customstuff: "anything you' like!" });
+
+// To consume events:
+consume((event, meta) => {
+	// Do whatever.
+	// Return a promise if you want to block more events.
+	// No events will be emitted until the promise resolves/rejects.
+});
+```
+
 limits
 ------
 
 * Maximum 100 million events per day.
 
-Roadmap
+roadmap
 -------
 
 * Upload historic logfiles to AWS S3, and streaming events from there when you

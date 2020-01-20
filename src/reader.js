@@ -43,9 +43,9 @@ function reader(filenameTemplate) {
 					didEnd = true;
 					stream.destroy();
 				}
-				if (didEnd) return new Promise(resolve => resolve());
+				if (didEnd) return Promise.resolve();
 
-				return new Promise(resolve => resolve())
+				return Promise.resolve()
 					.then(() => JSON.parse(data))
 					.then(data => {
 						if (pos >= fromPosition) {

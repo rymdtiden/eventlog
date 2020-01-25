@@ -1,3 +1,5 @@
+[![Build Status](https://semaphoreci.com/api/v1/houseagency/eventlog/branches/master/shields_badge.svg)](https://semaphoreci.com/houseagency/eventlog)
+
 eventlog
 ========
 

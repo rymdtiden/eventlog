@@ -31,6 +31,61 @@ consume((event, meta) => {
 });
 ```
 
+functions
+---------
+
+### eventlog(filenamePattern)
+
+Where `filenamePattern` is the path to where logfiles will be written. It must
+contain the substrings `%y`, `%m` and `%d`, which will be replaced by the
+year, month and day. Example: `data/events-%y-%m-%d.log`
+
+Will return `{ add, consume }`.
+
+Both `add` and `consume` are functions. See documentation for those below.
+
+### add(eventObj)
+
+Where `eventObj` is a json-stringify:able object.
+
+Returns `{ id, logfile, promise }`
+
+* `id` is a unique random string identifying the event you just added.
+* `logfile` is the file path to the logfile that the event was written to.
+* `promise` is a `Promise` that will resolve when the write to disk is verified
+  and the event has been given a position.
+
+The `promise` resolves with this object `{ id, pos, prevPos }`.
+
+* `id` is the same `id` as returned from `add()`.
+* `pos` is the position number for this event.
+* `prevPos` is the position number for the previous event. If the event is the
+  first ever written, `prevPos` will be `undefined`.
+
+### consume(callback, fromPosition)
+
+Where `callback` is the a function to be called for every event. `fromPosition`
+is the starting position from where events will be consumed.
+
+The `callback` function will be called with the arguments:
+`callback(eventObj, meta);` where `eventObj` is the event that was added with
+the `add()` function. `meta` is an object with metadata for the event:
+`{ id, pos, prevPos }`.
+
+event positions
+---------------
+
+Every event will be enumbered with an unique number, which determines the
+order of the events.
+
+Event numbers are 16 digits long. The first four digits are the year of the
+event, the next two are the month and the comes to digits which are the day.
+The following eight digits are just an incremental number for that day,
+starting with `00000000` for every day.
+
+So the first event on 31 of January 1984 is `1984013100000000` and the second
+event that day is `1984013100000001`.
+
 limits
 ------
 

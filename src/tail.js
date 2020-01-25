@@ -3,7 +3,8 @@ const EventEmitter = require("events");
 const fs = require("fs");
 const path = require("path");
 const stream = require("stream");
-const { Readable } = require('stream');
+const { Readable } = require("stream");
+const writenotifier = require("./writenotifier");
 
 function tail(filename) {
 
@@ -51,12 +52,24 @@ function tail(filename) {
 		log("Closed file %s.", filename);
 		fs.close(fd, () => {});
 		watcher.close();
+		fs.unwatchFile(filename);
+		writenotifier.off("write", writeNotificationHandler);
 	});
 
 	const watcher = fs.watch(filename, (eventType, filename) => {
 		log("File changed.");
 		signals.emit("hasMoreData");
 	});
+	fs.watchFile(filename, { interval: 100, persistent: false }, (eventType, filename) => {
+		log("File changed.");
+		signals.emit("hasMoreData");
+	});
+
+	function writeNotificationHandler() {
+		signals.emit("hasMoreData");
+	}
+
+	writenotifier.on("write", writeNotificationHandler);
 
 	return readable;
 

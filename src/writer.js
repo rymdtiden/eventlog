@@ -6,6 +6,7 @@ const fs = require("fs");
 const reader = require("./reader");
 const time = require("./time");
 const { promisify } = require("util");
+const writenotifier = require("./writenotifier");
 const write = promisify(fs.write);
 const close = promisify(fs.close);
 
@@ -18,11 +19,12 @@ function randStr(len) {
 		.join("");
 }
 
-function makeEnding(fileDescriptor) {
+function makeEnding(fileDescriptor, filename) {
 	if (!fileDescriptor) return;
 	write(fileDescriptor, "---end\n")
 		.then(() => close(fileDescriptor))
-		.catch(err => {});
+		.catch(err => {})
+		.then(() => writenotifier.emit("write", filename));
 }
 
 function writer(filenameTemplate) {
@@ -52,7 +54,7 @@ function writer(filenameTemplate) {
 	}
 
 	time.on("dateChange", () => {
-		makeEnding(writeDescriptor);
+		makeEnding(writeDescriptor, currentLogfile);
 		createNewWriteDescriptor();
 	});
 	createNewWriteDescriptor();
@@ -91,7 +93,8 @@ function writer(filenameTemplate) {
 			JSON.stringify({ event, meta }) + "\n"
 		)
 			.then(() => {})
-			.catch(console.log);
+			.catch(console.log)
+			.then(() => writenotifier.emit("write", currentLogfile));
 
 		const promise = new Promise((resolve, reject) => {
 			// Wait until the event we just wrote has been picked up by the

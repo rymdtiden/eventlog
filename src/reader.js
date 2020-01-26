@@ -5,14 +5,17 @@ const { promisify } = require("util");
 const promisifyStreamChunks = require("promisify-stream-chunks");
 const split2 = require("split2");
 const tail = require("./tail");
+const time = require("./time");
 const open = promisify(fs.open);
 const close = promisify(fs.close);
+const path = require("path");
 
 let readerCounter = 0;
 
 function reader(filenameTemplate) {
 
-	const log = debug("eventlog:reader:" + readerCounter);
+	const readerId = readerCounter;
+	const log = debug("eventlog:reader:" + readerId);
 	readerCounter++;
 
 	function consume(callback, fromPosition) {
@@ -32,18 +35,9 @@ function reader(filenameTemplate) {
 			})
 
 		function eventHandler(stream) {
-			let didEnd = false;
 			return promisifyStreamChunks(data => {
 
 				log("Loaded data from logfile: %s", data);
-
-				// Stop processing events if we reach ---end
-				if (data === "---end" && !didEnd) {
-					log("Reached end of file marker.");
-					didEnd = true;
-					stream.destroy();
-				}
-				if (didEnd) return Promise.resolve();
 
 				return Promise.resolve()
 					.then(() => JSON.parse(data))
@@ -68,6 +62,9 @@ function reader(filenameTemplate) {
 		}
 
 		function readFromLogfile(logfile) {
+			const log = debug("eventlog:reader:" + readerId + ":" + path.basename(logfile));
+
+			log("Start reading %s", logfile);
 			pos = files.firstPositionInLogfile(logfile, filenameTemplate);
 
 			let endAppendTimeout;
@@ -76,73 +73,53 @@ function reader(filenameTemplate) {
 			function closeCallback() {
 				if (didClose) return didClose = true;
 				log("Logfile stream closed.");
-				if (endAppendTimeout) clearTimeout(endAppendTimeout);
-				files.nextExistingLogfile(logfile, filenameTemplate)
-					.then(file => {
-						if (file) {
-							log("Next existing logfile is: %s", file);
-							readFromLogfile(file);
-						} else {
-							log("No existing logfile to continue with.");
-						}
-					});
 			}
 
 			const stream = tail(logfile);
 			stream
 				.pipe(split2())
 				.pipe(eventHandler(stream));
+
 			stream.on("error", err => {
 					log("Error in data stream: %o", err);
 					closeCallback();
 				})
 				.on("end", closeCallback)
 				.on("close", closeCallback);
-			stream.once("sync", () => {
 
-				log("Logfile tail in sync.");
+			let lock = false;
+			function checkNext() {
+				if (lock) return log("checkNext() - Locked.");
+				lock = true;
+				log("checkNext()");
 
-				function appendEndToOldLogfile() {
-					endAppendTimeout = setTimeout(() => {
-						fs.appendFile(logfile, "---end\n", err => {
-							if (err) {
-								log("Error when trying to append ---end marker to logfile:");
-								log(err);
+				const todaysLogfile = files.logfileForToday(filenameTemplate);
+				log(todaysLogfile);
+				if (todaysLogfile !== logfile) {
+					log("Not today.");
+
+					files.nextExistingLogfile(logfile, filenameTemplate)
+						.then(file => {
+							if (file) {
+								log("Next existing logfile is: %s", file);
+								stream.destroy();
+								time.off("dateChange", checkNext);
+								stream.off("sync", checkNext);
+								readFromLogfile(file);
+							} else {
+								log("No existing logfile to continue with.");
 							}
-							log("Did append ---end marker to logfile.");
+							log("Drop lock.");
+							lock = false;
 						});
-					}, 5000).unref();
+				} else {
+					lock = false;
 				}
+			}
 
-				function lookForNextFile() {
+			time.on("dateChange", checkNext);
+			stream.on("sync", checkNext);
 
-					const todaysLogfile = files.logfileForToday(filenameTemplate);
-
-					if (todaysLogfile !== logfile) {
-						
-						files.touch(todaysLogfile)
-							.then(() => {
-								// Today's file exists and it's not this one!
-								appendEndToOldLogfile();
-							})
-							.catch(err => {
-								// Could not open today's file. Check for other files newer than the current one:
-
-								files.nextExistingLogfile(logfile, filenameTemplate)
-									.then(nextLogfile => {
-										if (nextLogfile) {
-											appendEndToOldLogfile();
-										} else {
-											setTimeout(lookForNextFile, 10000);
-										}
-									})
-									.catch(console.log);
-							});
-					}
-				}
-				lookForNextFile();
-
-			});
 		}
 
 	}

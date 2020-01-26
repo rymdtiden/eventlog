@@ -22,9 +22,16 @@ class ReadOnlyError extends Error {
 	}
 }
 
+class WriteError extends Error {
+	constructor() {
+		super("An error occured while writing event to logfile.");
+	}
+}
+
 module.exports = {
 	InvalidYearError,
 	InvalidMonthError,
 	InvalidDayError,
-	ReadOnlyError
+	ReadOnlyError,
+	WriteError
 };

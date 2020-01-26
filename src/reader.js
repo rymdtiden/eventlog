@@ -72,22 +72,20 @@ function reader(filenameTemplate) {
 
 			let endAppendTimeout;
 
+			let didClose = false;
 			function closeCallback() {
-				closeCallback = () => {}; // Call closeCallback only once...
+				if (didClose) return didClose = true;
 				log("Logfile stream closed.");
 				if (endAppendTimeout) clearTimeout(endAppendTimeout);
-				setTimeout(() => {
-					files.nextExistingLogfile(logfile, filenameTemplate)
-						.then(file => {
-							if (file) {
-								log("Next existing logfile is: %s", file);
-								readFromLogfile(file);
-							} else {
-								log("No existing logfile to continue with.");
-							}
-						})
-						.catch(console.log)
-				}, 100);
+				files.nextExistingLogfile(logfile, filenameTemplate)
+					.then(file => {
+						if (file) {
+							log("Next existing logfile is: %s", file);
+							readFromLogfile(file);
+						} else {
+							log("No existing logfile to continue with.");
+						}
+					});
 			}
 
 			const stream = tail(logfile);
@@ -113,7 +111,7 @@ function reader(filenameTemplate) {
 							}
 							log("Did append ---end marker to logfile.");
 						});
-					}, 5000);
+					}, 5000).unref();
 				}
 
 				function lookForNextFile() {

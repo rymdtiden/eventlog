@@ -51,12 +51,11 @@ function tail(filename) {
 	readable.on("close", () => {
 		log("Closed file %s.", filename);
 		fs.close(fd, () => {});
-		watcher.close();
 		fs.unwatchFile(filename);
 		writenotifier.off("write", writeNotificationHandler);
 	});
 
-	const watcher = fs.watch(filename, (eventType, filename) => {
+	const watcher = fs.watch(filename, { persistent: false }, (eventType, filename) => {
 		log("File changed.");
 		signals.emit("hasMoreData");
 	});

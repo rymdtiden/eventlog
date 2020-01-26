@@ -55,13 +55,14 @@ describe("writer.js", () => {
 					expect(logfile.substr(-22)).to.equal("/events-1984-02-04.log");
 					return id
 				})
+				.then(id => new Promise(resolve => setTimeout(() => resolve(id), 50)))
 				.then(id => {
-					const data = JSON.parse(
-						fs.readFileSync(
-							path.join(path.dirname(filenameTemplate), "events-1984-02-04.log"),
-							"utf8"
-						).trim()
-					);
+					const filename = path.join(path.dirname(filenameTemplate), "events-1984-02-04.log");
+					const rawdata = fs.readFileSync(
+						filename,
+						"utf8"
+					).trim();
+					const data = JSON.parse(rawdata);
 					expect(data).to.deep.equal({
 						event: { type: "anotherdummy" },
 						meta: { id }

@@ -40,7 +40,10 @@ function tail(filename) {
 				log("Tail error %o", err);
 				readable.destroy(err);
 			}
-			if (!bytesRead) return readable.emit("sync");
+			if (!bytesRead) {
+				readLock = false;
+				return readable.emit("sync");
+			}
 			log("Read %d bytes.", bytesRead);
 			const data = buf.slice(0, bytesRead);
 			streamMeta.bytes = streamMeta.bytes + bytesRead;

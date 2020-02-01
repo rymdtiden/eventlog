@@ -14,9 +14,11 @@ let readerCounter = 0;
 
 function reader(filenameTemplate) {
 
-	const readerId = readerCounter;
+	const readerId = readerCounter; // Unique id for this reader.
 	const log = debug("eventlog:reader:" + readerId);
 	readerCounter++;
+
+	let nrOfProcessedRowsInCurrentFile;
 
 	function consume(callback, fromPosition) {
 
@@ -34,7 +36,8 @@ function reader(filenameTemplate) {
 				readFromLogfile(logfile);
 			})
 
-		function eventHandler(stream) {
+		function eventHandler() {
+			nrOfProcessedRowsInCurrentFile = 0;
 			return promisifyStreamChunks(data => {
 
 				log("Loaded data from logfile: %s", data);
@@ -50,13 +53,14 @@ function reader(filenameTemplate) {
 									pos,
 									prevPos
 								}
-							);
+							)
 						}
 					})
 					.catch(err => log("Error during event processing %o", err))
 					.then(() => {
 						prevPos = pos;
-						pos = pos + 1;
+						pos++;
+						nrOfProcessedRowsInCurrentFile++;
 					})
 			})
 		}
@@ -75,10 +79,10 @@ function reader(filenameTemplate) {
 				log("Logfile stream closed.");
 			}
 
-			const stream = tail(logfile);
+			const { streamMeta, stream } = tail(logfile);
 			stream
 				.pipe(split2())
-				.pipe(eventHandler(stream));
+				.pipe(eventHandler());
 
 			stream.on("error", err => {
 					log("Error in data stream: %o", err);
@@ -89,6 +93,7 @@ function reader(filenameTemplate) {
 
 			let lock = false;
 			function checkNext() {
+
 				if (lock) return log("checkNext() - Locked.");
 				lock = true;
 				log("checkNext()");

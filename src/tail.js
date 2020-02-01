@@ -6,7 +6,19 @@ const stream = require("stream");
 const { Readable } = require("stream");
 const writenotifier = require("./writenotifier");
 
+function countRows(buf) {
+	let lineBreakCount = -1;
+	let index = -1;
+	do {
+		index = buf.indexOf(10, index + 1);
+		lineBreakCount++;
+	} while (index !== -1);
+	return lineBreakCount;
+}
+
 function tail(filename) {
+
+	const streamMeta = { bytes: 0, rows: 0 };
 
 	const log = debug("eventlog:tail:" + path.basename(filename));
 
@@ -15,9 +27,12 @@ function tail(filename) {
 
 	const chunkSize = 16 * 1024; // 16 kb
 	let paused;
+	let readLock = false;
 
 	const signals = new EventEmitter();
 	signals.on("requestMoreData", size => {
+		if (readLock) return;
+		readLock = true;
 		if (paused || readable.destroyed) return;
 		const buf = Buffer.alloc(size || chunkSize);
 		fs.read(fd, buf, 0, chunkSize, null, (err, bytesRead, buf) => {
@@ -28,9 +43,13 @@ function tail(filename) {
 			if (!bytesRead) return readable.emit("sync");
 			log("Read %d bytes.", bytesRead);
 			const data = buf.slice(0, bytesRead);
+			streamMeta.bytes = streamMeta.bytes + bytesRead;
+			streamMeta.rows = streamMeta.rows + countRows(data);
+			
 			paused = readable.push(data) ? false : true;
 			if (paused) log("Underlying buffer full. Pausing.");
 			if (!paused) signals.emit("requestMoreData");
+			readLock = false;
 		});
 	});
 	signals.on("hasMoreData", () => {
@@ -70,7 +89,7 @@ function tail(filename) {
 
 	writenotifier.on("write", writeNotificationHandler);
 
-	return readable;
+	return { streamMeta, stream: readable };
 
 }
 

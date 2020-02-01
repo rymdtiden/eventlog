@@ -180,6 +180,29 @@ describe("reader.js", () => {
 
 		});
 
+		it("one million events should be no problem in half a minute", function () {
+			this.timeout(30000);
+			const filenameTemplate = path.join(disposableFile.dirSync(), "events%y%m%d.log");
+			const nr = 1000000;
+			const str = [ ...(Array(nr)) ].map((_, index) => "{ \"event\": { \"type\": \"test\" }, \"meta\": { \"id\": \"test" + index + "\" } }\n").join("");
+
+			fs.appendFileSync(logfileForToday(filenameTemplate), str);
+
+			const { consume } = reader(filenameTemplate);
+			let counter = 0;
+			return new Promise((resolve, reject) => {
+				consume((event, meta) =>
+					Promise.resolve()
+					.then(() => {
+						counter++;
+						if (counter === nr - 1) resolve();
+					})
+				);
+			});
+
+
+		});
+
 	});
 
 });

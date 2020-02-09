@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { promisify } = require("util");
 const time = require("./time");
-const { InvalidYearError, InvalidMonthError, InvalidDayError } = require("./errors");
+const { InvalidYearError, InvalidMonthError, InvalidDayError, TimeIsInFutureError } = require("./errors");
 const log = debug("eventlog:files");
 
 const open = promisify(fs.open);
@@ -136,8 +136,12 @@ function logfileDate(filename, filenameTemplate) {
 	const monthStr = filename.substr(templateInfo.mPos, 2);
 	const dayStr = filename.substr(templateInfo.dPos, 2);
 
-	const { year, month, day } = validatedDate(yearStr, monthStr, dayStr);
-	return { year, month, day };
+	try {
+		const { year, month, day } = validatedDate(yearStr, monthStr, dayStr);
+		return { year, month, day };
+	} catch (err) {
+		return false;
+	}
 }
 
 function firstPositionInLogfile(filename, filenameTemplate) {
@@ -175,9 +179,12 @@ function validatedDate(year, month, day) {
 	// A logfile for a day in the future should not be considered valid,
 	// since that cannot be a log of something that has happened (because it is in the future):
 	const currentTime = time.now();
-	if (year > currentTime.year) throw new InvalidYearError();
-	if (year === currentTime.year && month > currentTime.month) throw new InvalidMonthError();
-	if (year === currentTime.year && month === currentTime.month && day > currentTime.day) throw new InvalidDayError();
+	if (year > currentTime.year) {
+		// console.log(year, month, day, currentTime);
+		throw new TimeIsInFutureError();
+	}
+	if (year === currentTime.year && month > currentTime.month) throw new TimeIsInFutureError();
+	if (year === currentTime.year && month === currentTime.month && day > currentTime.day) throw new TimeIsInFutureError();
 
 	return { year, month, day };
 }

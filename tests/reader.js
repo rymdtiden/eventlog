@@ -20,13 +20,15 @@ describe("reader.js", () => {
 			const { consume } = reader(filenameTemplate);
 
 			const log = [];
-			return consume((event, meta) => {
+			const { promise, stop } = consume((event, meta) => {
 				log.push({ event, meta });
-			})
+			});
+			return promise
 				.then(() => new Promise(resolve => setTimeout(resolve, 50)))
 				.then(() => {
-					const { add } = writer(filenameTemplate);
-					return add({ type: "justatest" });
+					const { add, stop } = writer(filenameTemplate);
+					return add({ type: "justatest" }).promise
+						.then(stop);
 				})
 				.then(() => new Promise(resolve => setTimeout(resolve, 50)))
 				.then(() => {
@@ -34,14 +36,15 @@ describe("reader.js", () => {
 					expect(log[0].event.type).to.equal("justatest");
 					expect(log[0].meta.pos).to.be.a("number");
 					expect(log[0].meta.prevPos).to.be.an("undefined");
-				});
+				})
+				.finally(() => stop());
 
 		});
 
 		it("should read all events from an existing logfile and be able to continue", function() {
 			this.timeout(10000);
 			const filenameTemplate = path.join(disposableFile.dirSync(), "events%y%m%d.log");
-			const { add } = writer(filenameTemplate);
+			const { add, stop } = writer(filenameTemplate);
 			return add({ type: "first" }).promise
 				.then(() => add({ type: "second" }).promise)
 				.then(() => add({ type: "third" }).promise)
@@ -52,7 +55,7 @@ describe("reader.js", () => {
 					const { consume } = reader(filenameTemplate);
 					const log = [];
 					
-					consume((event, meta) => log.push({ event, meta }));
+					const { stop } = consume((event, meta) => log.push({ event, meta }));
 
 					return new Promise(resolve => setTimeout(resolve, 100))
 						.then(() => {
@@ -80,17 +83,22 @@ describe("reader.js", () => {
 							expect(log[5].event.type).to.equal("sixth");
 							expect(log[6].event.type).to.equal("seventh");
 							expect(log[7].event.type).to.equal("eighth");
-						});
-				});
+						})
+						.finally(() => stop());
+				})
+					.finally(() => stop());
 		});
 
 		it("should process all historic logfiles in correct order", function () {
 			this.timeout(20000);
 
+			let stopReader0, stopReader1;
+
 			return setTimeAndWaitUntilItIsApplied(1979, 5, 25)
 				.then(() => {
 					const filenameTemplate = path.join(disposableFile.dirSync(), "events%y%m%d.log");
-					const { add } = writer(filenameTemplate);
+
+					const { add, stop } = writer(filenameTemplate);
 					return add({ type: "ett" }).promise
 						.then(() => add({ type: "två" }).promise)
 						.then(() => add({ type: "tre" }).promise)
@@ -133,12 +141,13 @@ describe("reader.js", () => {
 							const log = [];
 							
 							return new Promise(resolve => {
-								consume((event, meta) => {
+								const { stop } = consume((event, meta) => {
 									log.push(event.type);
 									if (event.type === "sexton") {
 										setTimeout(resolve, 200);
 									}
 								});
+								stopReader0 = stop;
 							})
 								.then(() => {
 									expect(log).to.deep.equal([
@@ -147,7 +156,9 @@ describe("reader.js", () => {
 										"elva", "tolv", "tretton", "fjorton",
 										"femton", "sexton"
 									]);
-								});
+								})
+								.then(() =>
+									new Promise(resolve => setTimeout(resolve, 10000)));
 						})
 						.then(() => add({ type: "sjutton" }).promise)
 						.then(() => add({ type: "arton" }).promise)
@@ -159,12 +170,13 @@ describe("reader.js", () => {
 							const log = [];
 							
 							return new Promise(resolve => {
-								consume((event, meta) => {
+								const { stop } = consume((event, meta) => {
 									log.push(event.type);
 									if (event.type === "tjugio") {
 										setTimeout(resolve, 200);
 									}
 								});
+								stopReader1 = stop;
 							})
 								.then(() => {
 									expect(log).to.deep.equal([
@@ -176,14 +188,21 @@ describe("reader.js", () => {
 									]);
 								});
 						})
+							.finally(() => {
+								stop();
+							});
 				})
+					.finally(() => {
+						stopReader0();
+						stopReader1();
+					});
 
 		});
 
-		it("one million events should be no problem in half a minute", function () {
+		it("500000 events should be no problem in half a minute", function () {
 			this.timeout(30000);
 			const filenameTemplate = path.join(disposableFile.dirSync(), "events%y%m%d.log");
-			const nr = 1000000;
+			const nr = 500000;
 			const str = [ ...(Array(nr)) ].map((_, index) => "{ \"event\": { \"type\": \"test\" }, \"meta\": { \"id\": \"test" + index + "\" } }\n").join("");
 
 			fs.appendFileSync(logfileForToday(filenameTemplate), str);
@@ -191,16 +210,14 @@ describe("reader.js", () => {
 			const { consume } = reader(filenameTemplate);
 			let counter = 0;
 			return new Promise((resolve, reject) => {
-				consume((event, meta) =>
-					Promise.resolve()
-					.then(() => {
-						counter++;
-						if (counter === nr - 1) resolve();
-					})
-				);
+				const { stop } = consume((event, meta) => {
+					counter++;
+					if (counter === nr - 1) {
+						stop();
+						resolve();
+					}
+				});
 			});
-
-
 		});
 
 	});

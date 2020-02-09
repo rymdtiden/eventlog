@@ -1,3 +1,12 @@
+/**
+ *   Om:
+ *    1. sync från tail
+ *    2. antalet lästa rader i tail är samma som antalet processade
+ *    3. det finns en nyare fil
+ *    4. inget hänt på 100 ms.
+ *   I sådana fall gå vidare till nästa fil.
+ */
+
 const debug = require("debug");
 const files = require("./files");
 const fs = require("fs");
@@ -10,22 +19,25 @@ const open = promisify(fs.open);
 const close = promisify(fs.close);
 const path = require("path");
 
-let readerCounter = 0;
-
 function reader(filenameTemplate) {
 
-	const readerId = readerCounter; // Unique id for this reader.
-	const log = debug("eventlog:reader:" + readerId);
-	readerCounter++;
-
-	let nrOfProcessedRowsInCurrentFile;
+	let log = debug("eventlog:reader");
 
 	function consume(callback, fromPosition) {
+
+		let currentLogFile;
+		let currentStream;
+		let currentStreamMeta;
+		let nextFile;
+		let nrOfProcessedRowsInCurrentFile;
+		let stopped = false;
+		let syncedAtRow;
+		let syncedAtTime;
 
 		let pos, prevPos;
 		if (typeof fromPosition === "undefined") fromPosition = 0;
 
-		return files.existingLogfileByPosition(fromPosition, filenameTemplate)
+		const promise = files.existingLogfileByPosition(fromPosition, filenameTemplate)
 			.then(file => {
 				if (file) return file;
 				const newLogfile = files.logfileForToday(filenameTemplate);
@@ -37,6 +49,9 @@ function reader(filenameTemplate) {
 			})
 
 		function eventHandler() {
+
+			if (stopped) return;
+
 			nrOfProcessedRowsInCurrentFile = 0;
 			return promisifyStreamChunks(data => {
 
@@ -54,6 +69,8 @@ function reader(filenameTemplate) {
 									prevPos
 								}
 							)
+						} else {
+							log("E V E N T   R E A D   I N   W R O N G   O R D E R");
 						}
 					})
 					.catch(err => log("Error during event processing %o", err))
@@ -65,13 +82,36 @@ function reader(filenameTemplate) {
 			})
 		}
 
-		function readFromLogfile(logfile) {
-			const log = debug("eventlog:reader:" + readerId + ":" + path.basename(logfile));
+		function nextFileWatcher() {
+			if (stopped) return;
 
+			const logfile = currentLogFile;
+			const todaysLogfile = files.logfileForToday(filenameTemplate);
+
+			if (logfile === todaysLogfile) time.on("dateChange", nextFileWatcher);
+
+			files.nextExistingLogfile(logfile, filenameTemplate)
+				.then(file => {
+					if (stopped) return;
+					if (logfile === currentLogFile) {
+						nextFile = file;
+						endOfFileCheck();
+						if (nextFile) {
+							setTimeout(nextFileWatcher, 5000).unref();
+						} else {
+							setTimeout(nextFileWatcher, 300).unref();
+						}
+					}
+				});
+		}
+
+		function readFromLogfile(logfile) {
+			log = debug("eventlog:reader:" + path.basename(logfile));
 			log("Start reading %s", logfile);
+
 			pos = files.firstPositionInLogfile(logfile, filenameTemplate);
 
-			let endAppendTimeout;
+			nextFile = null;
 
 			let didClose = false;
 			function closeCallback() {
@@ -80,6 +120,11 @@ function reader(filenameTemplate) {
 			}
 
 			const { streamMeta, stream } = tail(logfile);
+			currentStream = stream;
+			currentStreamMeta = streamMeta;
+			currentLogFile = logfile;
+			nextFileWatcher();
+
 			stream
 				.pipe(split2())
 				.pipe(eventHandler());
@@ -91,41 +136,52 @@ function reader(filenameTemplate) {
 				.on("end", closeCallback)
 				.on("close", closeCallback);
 
-			let lock = false;
-			function checkNext() {
+			stream.on("sync", () => {
+				syncedAtRow = streamMeta.rows;
+				syncedAtTime = new Date().getTime();
 
-				if (lock) return log("checkNext() - Locked.");
-				lock = true;
-				log("checkNext()");
-
-				const todaysLogfile = files.logfileForToday(filenameTemplate);
-				log(todaysLogfile);
-				if (todaysLogfile !== logfile) {
-					log("Not today.");
-
-					files.nextExistingLogfile(logfile, filenameTemplate)
-						.then(file => {
-							if (file) {
-								log("Next existing logfile is: %s", file);
-								stream.destroy();
-								time.off("dateChange", checkNext);
-								stream.off("sync", checkNext);
-								readFromLogfile(file);
-							} else {
-								log("No existing logfile to continue with.");
-							}
-							log("Drop lock.");
-							lock = false;
-						});
-				} else {
-					lock = false;
-				}
-			}
-
-			time.on("dateChange", checkNext);
-			stream.on("sync", checkNext);
+				endOfFileCheck(logfile);
+			});
 
 		}
+
+		function readFromNextFile() {
+			log("readFromNextFile!!!");
+			if (!currentStream || stopped) return;
+			const logfile = nextFile;
+			currentStream.destroy();
+			currentStream = null;
+			readFromLogfile(logfile);
+		}
+
+		function endOfFileCheck() {
+			if (syncedAtRow === currentStreamMeta.rows &&
+				syncedAtRow === nrOfProcessedRowsInCurrentFile &&
+				nextFile
+			) {
+
+				const timeDiff = new Date().getTime() - syncedAtTime;
+				log ("endOfFileCheck timeDiff %d", timeDiff);
+
+				if (timeDiff < 100) {
+					setTimeout(endOfFileCheck, 110 - timeDiff);
+
+				} else {
+					readFromNextFile();
+				}
+			}
+		}
+
+		function stop() {
+			if (stopped) return;
+			stopped = true;
+
+			if (!currentStream) return;
+			currentStream.destroy();
+			currentStream = null;
+		}
+
+		return { stop, promise };
 
 	}
 

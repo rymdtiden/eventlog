@@ -3,6 +3,7 @@ const debug = require("debug");
 const EventEmitter = require("events");
 const files = require("./files");
 const fs = require("fs");
+const path = require("path");
 const reader = require("./reader");
 const time = require("./time");
 const { promisify } = require("util");
@@ -11,7 +12,6 @@ const writenotifier = require("./writenotifier");
 const write = promisify(fs.write);
 const close = promisify(fs.close);
 
-const log = debug("eventlog:writer");
 
 function randStr(len) {
 	return [...crypto.randomBytes(len)]
@@ -24,12 +24,17 @@ function writer(filenameTemplate) {
 
 	let writeDescriptor;
 	let currentLogfile;
+	let log = debug("eventlog:writer");
+	let stopped = false;
 
 	function createNewWriteDescriptor() {
 
+		if (stopped) return;
+
 		if (writeDescriptor) {
-			((writeDescriptor, currentLogfile) => {
+			((writeDescriptor, currentLogfile, log) => {
 				setImmediate(() => {
+					if (stopped) return;
 					close(writeDescriptor)
 						.then(() => log("Closed logfile: %s", currentLogfile))
 						.catch(err => {
@@ -38,32 +43,37 @@ function writer(filenameTemplate) {
 							// function. Nothing to worry about.
 						});
 				});
-			})(writeDescriptor, currentLogfile);
+			})(writeDescriptor, currentLogfile, log);
 		}
 
 		currentLogfile = files.logfileForToday(filenameTemplate);
+		log = debug("eventlog:writer:" + path.basename(currentLogfile));
 		writeDescriptor = fs.openSync(currentLogfile, "a");
 		log("Opened logfile for writing: %s", currentLogfile);
 	}
 
-	time.on("dateChange", () => {
-		createNewWriteDescriptor();
-	});
+	time.on("dateChange", createNewWriteDescriptor);
 	createNewWriteDescriptor();
 
 	const internalEmitter = new EventEmitter();
 	function eventConsumer(event, meta) {
+		if (stopped) false;
 		internalEmitter.emit(meta.id, event, meta);
 	}
 
+	let stopConsumer;
+
 	files.findLogfiles(filenameTemplate)
 		.then(logfiles => {
+
+			if (stopped) return;
 
 			const { consume } = reader(filenameTemplate);
 
 			if (logfiles.length === 0) {
 				log("No existing logs found. Starting internal consumer at beginning of history.");
-				consume(eventConsumer);
+				const { stop } = consume(eventConsumer);
+				stopConsumer = stop;
 
 			} else {
 				const lastLogfile = logfiles[logfiles.length - 1];
@@ -71,14 +81,16 @@ function writer(filenameTemplate) {
 				
 				log("Starting internal consumer at position %d", startReadPos);
 
-				consume(eventConsumer, startReadPos);
+				const { stop } = consume(eventConsumer, startReadPos);
+				stopConsumer = stop;
 			}
 		});
 
 	function add(event) {
+		if (stopped) false;
 		const meta = { id: randStr(32) };
 
-		debug("Writing event to log: %o", event);
+		log("Adding event to log: %O %O", event, meta);
 
 		write(
 			writeDescriptor,
@@ -97,7 +109,15 @@ function writer(filenameTemplate) {
 		return { ...meta, promise, logfile: currentLogfile };
 	}
 
-	return { add };
+	function stop() {
+		if (stopped) return;
+		stopped = true;
+		close(writeDescriptor)
+		time.off("dateChange", createNewWriteDescriptor);
+		if (stopConsumer) stopConsumer();
+	}
+
+	return { add, stop };
 
 }
 

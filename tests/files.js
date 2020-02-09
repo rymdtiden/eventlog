@@ -108,19 +108,19 @@ describe("files.js()", () => {
 		});
 
 		it("should return false on dates that never existed", () => {
-			expect(() => files.logfileDate("event-2019-01-32.log", "event-%y-%m-%d.log")).to.throw();
-			expect(() => files.logfileDate("event-2019-02-29.log", "event-%y-%m-%d.log")).to.throw();
-			expect(() => files.logfileDate("event-2019-03-32.log", "event-%y-%m-%d.log")).to.throw();
-			expect(() => files.logfileDate("event-2019-04-31.log", "event-%y-%m-%d.log")).to.throw();
-			expect(() => files.logfileDate("event-2019-05-32.log", "event-%y-%m-%d.log")).to.throw();
-			expect(() => files.logfileDate("event-2019-06-31.log", "event-%y-%m-%d.log")).to.throw();
-			expect(() => files.logfileDate("event-2019-07-32.log", "event-%y-%m-%d.log")).to.throw();
-			expect(() => files.logfileDate("event-2019-08-32.log", "event-%y-%m-%d.log")).to.throw();
-			expect(() => files.logfileDate("event-2019-09-31.log", "event-%y-%m-%d.log")).to.throw();
-			expect(() => files.logfileDate("event-2019-10-32.log", "event-%y-%m-%d.log")).to.throw();
-			expect(() => files.logfileDate("event-2019-11-31.log", "event-%y-%m-%d.log")).to.throw();
-			expect(() => files.logfileDate("event-2019-12-32.log", "event-%y-%m-%d.log")).to.throw();
-			expect(() => files.logfileDate("event-2019-13-01.log", "event-%y-%m-%d.log")).to.throw();
+			expect(files.logfileDate("event-2019-01-32.log", "event-%y-%m-%d.log")).to.equal(false);
+			expect(files.logfileDate("event-2019-02-29.log", "event-%y-%m-%d.log")).to.equal(false);
+			expect(files.logfileDate("event-2019-03-32.log", "event-%y-%m-%d.log")).to.equal(false);
+			expect(files.logfileDate("event-2019-04-31.log", "event-%y-%m-%d.log")).to.equal(false);
+			expect(files.logfileDate("event-2019-05-32.log", "event-%y-%m-%d.log")).to.equal(false);
+			expect(files.logfileDate("event-2019-06-31.log", "event-%y-%m-%d.log")).to.equal(false);
+			expect(files.logfileDate("event-2019-07-32.log", "event-%y-%m-%d.log")).to.equal(false);
+			expect(files.logfileDate("event-2019-08-32.log", "event-%y-%m-%d.log")).to.equal(false);
+			expect(files.logfileDate("event-2019-09-31.log", "event-%y-%m-%d.log")).to.equal(false);
+			expect(files.logfileDate("event-2019-10-32.log", "event-%y-%m-%d.log")).to.equal(false);
+			expect(files.logfileDate("event-2019-11-31.log", "event-%y-%m-%d.log")).to.equal(false);
+			expect(files.logfileDate("event-2019-12-32.log", "event-%y-%m-%d.log")).to.equal(false);
+			expect(files.logfileDate("event-2019-13-01.log", "event-%y-%m-%d.log")).to.equal(false);
 		});
 
 		it("should return proper dates on %y %m %d order", () => {
@@ -132,7 +132,7 @@ describe("files.js()", () => {
 			const template = "data/%y/events-%d-%m.log";
 			const currentTime = now();
 			const filename = "data/" + (new Date().getFullYear() + 1) + "/events-31-01.log";
-			expect(() => files.logfileDate(filename, template)).to.throw();
+			expect(files.logfileDate(filename, template)).to.equal(false);
 		});
 
 	});

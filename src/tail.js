@@ -42,6 +42,7 @@ function tail(filename) {
 			}
 			if (!bytesRead) {
 				readLock = false;
+				log("0 bytes read. Emitting sync event.");
 				return readable.emit("sync");
 			}
 			log("Read %d bytes.", bytesRead);
@@ -70,13 +71,6 @@ function tail(filename) {
 		}
 	});
 
-	readable.on("close", () => {
-		log("Closed file %s.", filename);
-		fs.close(fd, () => {});
-		fs.unwatchFile(filename);
-		writenotifier.off("write", writeNotificationHandler);
-	});
-
 	const watcher = fs.watch(filename, { persistent: false }, (eventType, filename) => {
 		log("File changed.");
 		signals.emit("hasMoreData");
@@ -91,6 +85,14 @@ function tail(filename) {
 	}
 
 	writenotifier.on("write", writeNotificationHandler);
+
+	readable.on("close", () => {
+		log("Closed file %s.", filename);
+		fs.close(fd, () => {});
+		fs.unwatchFile(filename);
+		watcher.close();
+		writenotifier.off("write", writeNotificationHandler);
+	});
 
 	return { streamMeta, stream: readable };
 

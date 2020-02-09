@@ -11,24 +11,26 @@ describe("writer.js", () => {
 	describe("add()", () => {
 
 		it("should return a hash, a time, a logfile and a promise", () => {
-			const { add } = writer(disposableFile.fileSync({ name: "events-%y-%m-%d.log" }));
+			const { add, stop } = writer(disposableFile.fileSync({ name: "events-%y-%m-%d.log" }));
 			const { id, promise, logfile } = add({ type: "dummyevent" })
 			expect(id).to.be.a("string");
 			expect(promise.then).to.be.a("function");
+			stop();
 		});
 
 		it("should return a promise which should resolve with pos and prevPos", () => {
-			const { add } = writer(disposableFile.fileSync({ name: "events-%y-%m-%d.log" }));
+			const { add, stop } = writer(disposableFile.fileSync({ name: "events-%y-%m-%d.log" }));
 			const { promise } = add({ type: "dummyevent" })
 			return promise
 				.then(meta => {
 					const { id, pos, prevPos } = meta;
 					expect(id).to.be.a("string");
-				});
+				})
+				.finally(() => stop());
 		});
 
 		it("should write event to file", () => {
-			const { add } = writer(disposableFile.fileSync({ name: "events-%y-%m-%d.log" }));
+			const { add, stop } = writer(disposableFile.fileSync({ name: "events-%y-%m-%d.log" }));
 			const { logfile, id, promise } = add({ type: "dummyevent" })
 			return promise
 				.then(meta => {
@@ -37,12 +39,13 @@ describe("writer.js", () => {
 						event: { type: "dummyevent" },
 						meta: { id }
 					});
-				});
+				})
+				.then(() => stop());
 		});
 
 		it("should switch write destination on date changes", () => {
 			const filenameTemplate = disposableFile.fileSync({ name: "events-%y-%m-%d.log" });
-			const { add } = writer(filenameTemplate);
+			const { add, stop } = writer(filenameTemplate);
 			return setTimeAndWaitUntilItIsApplied(1979, 5, 25)
 				.then(() => {
 					const { logfile, id, promise } = add({ type: "dummyevent" })
@@ -68,7 +71,10 @@ describe("writer.js", () => {
 						meta: { id }
 					});
 				})
-				.finally(() => td.reset());
+				.finally(() => {
+					td.reset();
+					stop();
+				});
 		});
 
 	});

@@ -173,6 +173,8 @@ function reader(filenameTemplate) {
 			if (!currentStream) return;
 			currentStream.destroy();
 			currentStream = null;
+
+			setImmediate(() => liveMeta.removeAllListeners());
 		}
 
 		return { liveMeta, stop, promise };

@@ -8,6 +8,7 @@
  */
 
 const debug = require("debug");
+const EventEmitter = require("events");
 const files = require("./files");
 const fs = require("fs");
 const { promisify } = require("util");
@@ -20,10 +21,10 @@ const close = promisify(fs.close);
 const path = require("path");
 
 function reader(filenameTemplate) {
-
 	let log = debug("eventlog:reader");
 
 	function consume(callback, fromPosition) {
+		const liveMeta = new EventEmitter();
 
 		let currentLogFile;
 		let currentStream;
@@ -37,38 +38,33 @@ function reader(filenameTemplate) {
 		let pos, prevPos;
 		if (typeof fromPosition === "undefined") fromPosition = 0;
 
-		const promise = files.existingLogfileByPosition(fromPosition, filenameTemplate)
+		const promise = files
+			.existingLogfileByPosition(fromPosition, filenameTemplate)
 			.then(file => {
 				if (file) return file;
 				const newLogfile = files.logfileForToday(filenameTemplate);
-				return files.touch(newLogfile)
-					.then(() => newLogfile);
+				return files.touch(newLogfile).then(() => newLogfile);
 			})
 			.then(logfile => {
 				readFromLogfile(logfile);
-			})
+			});
 
 		function eventHandler() {
-
 			if (stopped) return;
 
 			nrOfProcessedRowsInCurrentFile = 0;
 			return promisifyStreamChunks(data => {
-
 				log("Loaded data from logfile: %s", data);
 
 				return Promise.resolve()
 					.then(() => JSON.parse(data))
 					.then(data => {
 						if (pos >= fromPosition) {
-							return callback(
-								data.event,
-								{
-									...(data.meta),
-									pos,
-									prevPos
-								}
-							)
+							return callback(data.event, {
+								...data.meta,
+								pos,
+								prevPos
+							});
 						} else {
 							log("E V E N T   R E A D   I N   W R O N G   O R D E R");
 						}
@@ -78,8 +74,8 @@ function reader(filenameTemplate) {
 						prevPos = pos;
 						pos++;
 						nrOfProcessedRowsInCurrentFile++;
-					})
-			})
+					});
+			});
 		}
 
 		function nextFileWatcher() {
@@ -90,19 +86,18 @@ function reader(filenameTemplate) {
 
 			if (logfile === todaysLogfile) time.on("dateChange", nextFileWatcher);
 
-			files.nextExistingLogfile(logfile, filenameTemplate)
-				.then(file => {
-					if (stopped) return;
-					if (logfile === currentLogFile) {
-						nextFile = file;
-						endOfFileCheck();
-						if (nextFile) {
-							setTimeout(nextFileWatcher, 5000).unref();
-						} else {
-							setTimeout(nextFileWatcher, 300).unref();
-						}
+			files.nextExistingLogfile(logfile, filenameTemplate).then(file => {
+				if (stopped) return;
+				if (logfile === currentLogFile) {
+					nextFile = file;
+					endOfFileCheck();
+					if (nextFile) {
+						setTimeout(nextFileWatcher, 5000).unref();
+					} else {
+						setTimeout(nextFileWatcher, 300).unref();
 					}
-				});
+				}
+			});
 		}
 
 		function readFromLogfile(logfile) {
@@ -115,21 +110,22 @@ function reader(filenameTemplate) {
 
 			let didClose = false;
 			function closeCallback() {
-				if (didClose) return didClose = true;
+				if (didClose) return (didClose = true);
+				liveMeta.emit("close", logfile);
 				log("Logfile stream closed.");
 			}
 
+			liveMeta.emit("open", logfile);
 			const { streamMeta, stream } = tail(logfile);
 			currentStream = stream;
 			currentStreamMeta = streamMeta;
 			currentLogFile = logfile;
 			nextFileWatcher();
 
-			stream
-				.pipe(split2())
-				.pipe(eventHandler());
+			stream.pipe(split2()).pipe(eventHandler());
 
-			stream.on("error", err => {
+			stream
+				.on("error", err => {
 					log("Error in data stream: %o", err);
 					closeCallback();
 				})
@@ -142,7 +138,6 @@ function reader(filenameTemplate) {
 
 				endOfFileCheck(logfile);
 			});
-
 		}
 
 		function readFromNextFile() {
@@ -155,17 +150,16 @@ function reader(filenameTemplate) {
 		}
 
 		function endOfFileCheck() {
-			if (syncedAtRow === currentStreamMeta.rows &&
+			if (
+				syncedAtRow === currentStreamMeta.rows &&
 				syncedAtRow === nrOfProcessedRowsInCurrentFile &&
 				nextFile
 			) {
-
 				const timeDiff = new Date().getTime() - syncedAtTime;
-				log ("endOfFileCheck timeDiff %d", timeDiff);
+				log("endOfFileCheck timeDiff %d", timeDiff);
 
 				if (timeDiff < 100) {
 					setTimeout(endOfFileCheck, 110 - timeDiff);
-
 				} else {
 					readFromNextFile();
 				}
@@ -181,8 +175,7 @@ function reader(filenameTemplate) {
 			currentStream = null;
 		}
 
-		return { stop, promise };
-
+		return { liveMeta, stop, promise };
 	}
 
 	return { consume };

@@ -47,6 +47,11 @@ function writer(filenameTemplate) {
 		}
 
 		currentLogfile = files.logfileForToday(filenameTemplate);
+		try {
+			fs.mkdirSync(path.dirname(path.resolve(process.cwd(), filename)), { recursive: true });
+		} catch (err) {
+			//
+		}
 		log = debug("eventlog:writer:" + path.basename(currentLogfile));
 		writeDescriptor = fs.openSync(currentLogfile, "a");
 		log("Opened logfile for writing: %s", currentLogfile);

@@ -12,23 +12,20 @@ const writenotifier = require("./writenotifier");
 const write = promisify(fs.write);
 const close = promisify(fs.close);
 
-
 function randStr(len) {
 	return [...crypto.randomBytes(len)]
 		.map(n => Math.floor(n < 248 ? n / 4 : Math.random() * 61))
-		.map(n => String.fromCharCode(n + (n > 9 ? ( n < 36 ? 55 : 61) : 48)))
+		.map(n => String.fromCharCode(n + (n > 9 ? (n < 36 ? 55 : 61) : 48)))
 		.join("");
 }
 
 function writer(filenameTemplate) {
-
 	let writeDescriptor;
 	let currentLogfile;
 	let log = debug("eventlog:writer");
 	let stopped = false;
 
 	function createNewWriteDescriptor() {
-
 		if (stopped) return;
 
 		if (writeDescriptor) {
@@ -48,7 +45,9 @@ function writer(filenameTemplate) {
 
 		currentLogfile = files.logfileForToday(filenameTemplate);
 		try {
-			fs.mkdirSync(path.dirname(path.resolve(process.cwd(), filename)), { recursive: true });
+			fs.mkdirSync(path.dirname(path.resolve(process.cwd(), currentLogfile)), {
+				recursive: true
+			});
 		} catch (err) {
 			//
 		}
@@ -68,28 +67,30 @@ function writer(filenameTemplate) {
 
 	let stopConsumer;
 
-	files.findLogfiles(filenameTemplate)
-		.then(logfiles => {
+	files.findLogfiles(filenameTemplate).then(logfiles => {
+		if (stopped) return;
 
-			if (stopped) return;
+		const { consume } = reader(filenameTemplate);
 
-			const { consume } = reader(filenameTemplate);
+		if (logfiles.length === 0) {
+			log(
+				"No existing logs found. Starting internal consumer at beginning of history."
+			);
+			const { stop } = consume(eventConsumer);
+			stopConsumer = stop;
+		} else {
+			const lastLogfile = logfiles[logfiles.length - 1];
+			const startReadPos = files.firstPositionInLogfile(
+				lastLogfile,
+				filenameTemplate
+			);
 
-			if (logfiles.length === 0) {
-				log("No existing logs found. Starting internal consumer at beginning of history.");
-				const { stop } = consume(eventConsumer);
-				stopConsumer = stop;
+			log("Starting internal consumer at position %d", startReadPos);
 
-			} else {
-				const lastLogfile = logfiles[logfiles.length - 1];
-				const startReadPos = files.firstPositionInLogfile(lastLogfile, filenameTemplate);
-				
-				log("Starting internal consumer at position %d", startReadPos);
-
-				const { stop } = consume(eventConsumer, startReadPos);
-				stopConsumer = stop;
-			}
-		});
+			const { stop } = consume(eventConsumer, startReadPos);
+			stopConsumer = stop;
+		}
+	});
 
 	function add(event) {
 		if (stopped) false;
@@ -97,12 +98,11 @@ function writer(filenameTemplate) {
 
 		log("Adding event to log: %O %O", event, meta);
 
-		write(
-			writeDescriptor,
-			JSON.stringify({ event, meta }) + "\n"
-		)
+		write(writeDescriptor, JSON.stringify({ event, meta }) + "\n")
 			.then(() => writenotifier.emit("write", currentLogfile))
-			.catch(err => { throw new WriteError(); });
+			.catch(err => {
+				throw new WriteError();
+			});
 
 		const promise = new Promise((resolve, reject) => {
 			// Wait until the event we just wrote has been picked up by the
@@ -117,13 +117,12 @@ function writer(filenameTemplate) {
 	function stop() {
 		if (stopped) return;
 		stopped = true;
-		close(writeDescriptor)
+		close(writeDescriptor);
 		time.off("dateChange", createNewWriteDescriptor);
 		if (stopConsumer) stopConsumer();
 	}
 
 	return { add, stop };
-
 }
 
 module.exports = writer;

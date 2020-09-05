@@ -21,184 +21,183 @@ const close = promisify(fs.close);
 const path = require("path");
 
 function reader(filenameTemplate) {
-	let log = debug("eventlog:reader");
+  let log = debug("eventlog:reader");
 
-	function consume(callback, fromPosition, onSync) {
-		const liveMeta = new EventEmitter();
+  function consume(callback, fromPosition, onSync) {
+    const liveMeta = new EventEmitter();
 
-		let currentLogFile;
-		let currentStream;
-		let currentStreamMeta;
-		let nextFile;
-		let nrOfProcessedRowsInCurrentFile;
-		let stopped = false;
-		let syncedAtRow;
-		let syncedAtTime;
+    let currentLogFile;
+    let currentStream;
+    let currentStreamMeta;
+    let nextFile;
+    let nrOfProcessedRowsInCurrentFile;
+    let stopped = false;
+    let syncedAtRow;
+    let syncedAtTime;
 
-		let pos, prevPos;
-		if (typeof fromPosition === "undefined") fromPosition = 0;
+    let pos, prevPos;
+    if (typeof fromPosition === "undefined") fromPosition = 0;
 
-		const promise = files
-			.existingLogfileByPosition(fromPosition, filenameTemplate)
-			.then(file => {
-				if (file) return file;
-				const newLogfile = files.logfileForToday(filenameTemplate);
-				return files.touch(newLogfile).then(() => newLogfile);
-			})
-			.then(logfile => {
-				readFromLogfile(logfile);
-			});
+    const promise = files
+      .existingLogfileByPosition(fromPosition, filenameTemplate)
+      .then(file => {
+        if (file) return file;
+        const newLogfile = files.logfileForToday(filenameTemplate);
+        return files.touch(newLogfile).then(() => newLogfile);
+      })
+      .then(logfile => {
+        readFromLogfile(logfile);
+      });
 
-		function eventHandler() {
-			if (stopped) return;
+    function eventHandler() {
+      if (stopped) return;
 
-			nrOfProcessedRowsInCurrentFile = 0;
-			return promisifyStreamChunks(data => {
-				log("Loaded data from logfile: %s", data);
+      nrOfProcessedRowsInCurrentFile = 0;
+      return promisifyStreamChunks(data => {
+        log("Loaded data from logfile: %s", data);
 
-				return Promise.resolve()
-					.then(() => JSON.parse(data))
-					.then(data => {
-						if (pos >= fromPosition) {
-							return callback(data.event, {
-								...data.meta,
-								pos,
-								prevPos
-							});
-						} else {
-							log("E V E N T   R E A D   I N   W R O N G   O R D E R");
-						}
-					})
-					.catch(err => log("Error during event processing %o", err))
-					.then(() => {
-						prevPos = pos;
-						pos++;
-						nrOfProcessedRowsInCurrentFile++;
-					});
-			});
-		}
+        return Promise.resolve()
+          .then(() => JSON.parse(data))
+          .then(data => {
+            if (pos >= fromPosition) {
+              return callback(data.event, {
+                ...data.meta,
+                pos,
+                prevPos
+              });
+            } else {
+              log("E V E N T   R E A D   I N   W R O N G   O R D E R");
+            }
+          })
+          .catch(err => log("Error during event processing %o", err))
+          .then(() => {
+            prevPos = pos;
+            pos++;
+            nrOfProcessedRowsInCurrentFile++;
+          });
+      });
+    }
 
-		function nextFileWatcher() {
-			if (stopped) return;
+    function nextFileWatcher() {
+      if (stopped) return;
 
-			const logfile = currentLogFile;
-			const todaysLogfile = files.logfileForToday(filenameTemplate);
+      const logfile = currentLogFile;
+      const todaysLogfile = files.logfileForToday(filenameTemplate);
 
-			// Kommer inte det här att bli typ en miljard lyssnare efter ett tag?
-			if (logfile === todaysLogfile) time.on("dateChange", nextFileWatcher);
+      // Kommer inte det här att bli typ en miljard lyssnare efter ett tag?
+      if (logfile === todaysLogfile) time.on("dateChange", nextFileWatcher);
 
-			files.nextExistingLogfile(logfile, filenameTemplate).then(file => {
-				if (stopped) return;
-				if (logfile === currentLogFile) {
-					nextFile = file;
-					endOfFileCheck();
-					if (nextFile) {
-						setTimeout(nextFileWatcher, 5000).unref();
-					} else {
-						setTimeout(nextFileWatcher, 300).unref();
-					}
-				}
-			});
-		}
+      files.nextExistingLogfile(logfile, filenameTemplate).then(file => {
+        if (stopped) return;
+        if (logfile === currentLogFile) {
+          nextFile = file;
+          endOfFileCheck();
+          if (nextFile) {
+            setTimeout(nextFileWatcher, 5000).unref();
+          } else {
+            setTimeout(nextFileWatcher, 300).unref();
+          }
+        }
+      });
+    }
 
-		function readFromLogfile(logfile) {
-			log = debug("eventlog:reader:" + path.basename(logfile));
-			log("Start reading %s", logfile);
+    function readFromLogfile(logfile) {
+      log = debug("eventlog:reader:" + path.basename(logfile));
+      log("Start reading %s", logfile);
 
-			pos = files.firstPositionInLogfile(logfile, filenameTemplate);
+      pos = files.firstPositionInLogfile(logfile, filenameTemplate);
 
-			nextFile = null;
+      nextFile = null;
 
-			let didClose = false;
-			function closeCallback() {
-				if (didClose) return (didClose = true);
-				liveMeta.emit("close", logfile);
-				log("Logfile stream closed.");
-			}
+      let didClose = false;
+      function closeCallback() {
+        if (didClose) return (didClose = true);
+        liveMeta.emit("close", logfile);
+        log("Logfile stream closed.");
+      }
 
-			liveMeta.emit("open", logfile);
-			const { streamMeta, stream } = tail(logfile);
-			currentStream = stream;
-			currentStreamMeta = streamMeta;
-			currentLogFile = logfile;
-			nextFileWatcher();
+      liveMeta.emit("open", logfile);
+      const { streamMeta, stream } = tail(logfile);
+      currentStream = stream;
+      currentStreamMeta = streamMeta;
+      currentLogFile = logfile;
+      nextFileWatcher();
 
-			stream.pipe(split2()).pipe(eventHandler());
+      stream.pipe(split2()).pipe(eventHandler());
 
-			stream
-				.on("error", err => {
-					log("Error in data stream: %o", err);
-					closeCallback();
-				})
-				.on("end", closeCallback)
-				.on("close", closeCallback);
+      stream
+        .on("error", err => {
+          log("Error in data stream: %o", err);
+          closeCallback();
+        })
+        .on("end", closeCallback)
+        .on("close", closeCallback);
 
-			stream.on("sync", () => {
-				syncedAtRow = streamMeta.rows;
-				syncedAtTime = new Date().getTime();
+      stream.on("sync", () => {
+        syncedAtRow = streamMeta.rows;
+        syncedAtTime = new Date().getTime();
 
-				endOfFileCheck();
-			});
-		}
+        endOfFileCheck();
+      });
+    }
 
-		function readFromNextFile() {
-			log("readFromNextFile!!!");
-			if (!currentStream || stopped) return;
-			const logfile = nextFile;
-			currentStream.destroy();
-			currentStream = null;
-			readFromLogfile(logfile);
-		}
+    function readFromNextFile() {
+      log("readFromNextFile!!!");
+      if (!currentStream || stopped) return;
+      const logfile = nextFile;
+      currentStream.destroy();
+      currentStream = null;
+      readFromLogfile(logfile);
+    }
 
-		let lastSync = "";
+    let lastSync = "";
 
-		function endOfFileCheck() {
+    function endOfFileCheck() {
+      const timeDiff = new Date().getTime() - syncedAtTime;
+      if (
+        syncedAtRow === currentStreamMeta.rows &&
+        syncedAtRow === nrOfProcessedRowsInCurrentFile
+      ) {
+        if (nextFile) {
+          log("endOfFileCheck timeDiff %d", timeDiff);
 
-			const timeDiff = new Date().getTime() - syncedAtTime;
-			if (
-				syncedAtRow === currentStreamMeta.rows &&
-				syncedAtRow === nrOfProcessedRowsInCurrentFile
-			) {
-				if (nextFile) {
-					log("endOfFileCheck timeDiff %d", timeDiff);
+          if (timeDiff < 100) {
+            setTimeout(endOfFileCheck, 110 - timeDiff).unref();
+          } else {
+            readFromNextFile();
+          }
+        } else if (typeof onSync === "function") {
+          if (timeDiff < 100) {
+            setTimeout(endOfFileCheck, 110 - timeDiff).unref();
+          } else {
+            const syncInfo = {
+              file: currentLogFile,
+              rows: syncedAtRow
+            };
+            if (JSON.stringify(syncInfo) !== lastSync) {
+              lastSync = JSON.stringify(syncInfo);
+              onSync(syncInfo);
+            }
+          }
+        }
+      }
+    }
 
-					if (timeDiff < 100) {
-						setTimeout(endOfFileCheck, 110 - timeDiff).unref();
-					} else {
-						readFromNextFile();
-					}
-				} else if (typeof onSync === "function") {
-					if (timeDiff < 100) {
-						setTimeout(endOfFileCheck, 110 - timeDiff).unref();
-					} else {
-						const syncInfo = {
-							file: currentLogFile,
-							rows: syncedAtRow
-						};
-						if (JSON.stringify(syncInfo) !== lastSync) {
-							lastSync = JSON.stringify(syncInfo);
-							onSync(syncInfo);
-						}
-					}
-				}
-			}
-		}
+    function stop() {
+      if (stopped) return;
+      stopped = true;
 
-		function stop() {
-			if (stopped) return;
-			stopped = true;
+      if (!currentStream) return;
+      currentStream.destroy();
+      currentStream = null;
 
-			if (!currentStream) return;
-			currentStream.destroy();
-			currentStream = null;
+      setImmediate(() => liveMeta.removeAllListeners());
+    }
 
-			setImmediate(() => liveMeta.removeAllListeners());
-		}
+    return { liveMeta, stop, promise };
+  }
 
-		return { liveMeta, stop, promise };
-	}
-
-	return { consume };
+  return { consume };
 }
 
 module.exports = reader;

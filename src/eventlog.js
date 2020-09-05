@@ -7,48 +7,48 @@ const { ReadOnlyError } = require("./errors");
 const writer = require("./writer");
 
 function eventlog(opts) {
+  const filenameTemplate =
+    (opts && opts.filename) ||
+    path.join(disposableFile.dirSync(), "events-%y-%m-%d.log");
 
-	const filenameTemplate = (opts && opts.filename) || path.join(disposableFile.dirSync(), "events-%y-%m-%d.log");
+  const log = debug("eventlog:" + path.basename(filenameTemplate));
 
-	const log = debug("eventlog:" + path.basename(filenameTemplate));
+  const readOnly = opts && opts.readOnly ? true : false;
 
-	const readOnly = (opts && opts.readOnly) ? true : false;
+  const { add, stop } = (() => {
+    if (readOnly) {
+      log("Starting read-only eventlog.");
 
-	const { add, stop } = (() => {
-		if (readOnly) {
+      return {
+        add: () => Promise.reject(new ReadOnlyError()),
+        stop: () => {}
+      };
+    }
 
-			log("Starting read-only eventlog.");
+    log("Starting read-write eventlog.");
 
-			return {
-				add: () => Promise.reject(new ReadOnlyError()),
-				stop: () => {}
-			};
-		}
+    return writer(filenameTemplate);
+  })();
 
-		log("Starting read-write eventlog.");
+  // Store the writer's stop function and all readers' stop functions in this
+  // array, to be called when eventlog's stop function runs:
+  const stopFns = [stop];
 
-		return writer(filenameTemplate);
-	})();
+  const { consume } = reader(filenameTemplate);
 
-	// Store the writer's stop function and all readers' stop functions in this
-	// array, to be called when eventlog's stop function runs:
-	const stopFns = [ stop ];
-
-	const { consume } = reader(filenameTemplate);
-
-	return {
-		add,
-		consume: (...args) => {
-			const r = consume(...args);
-			stopFns.push(r.stop);
-			return r;
-		},
-		filename: filenameTemplate,
-		stop: () => {
-			log("Stopping.");
-			stopFns.forEach(fn => fn());
-		}
-	};
+  return {
+    add,
+    consume: (...args) => {
+      const r = consume(...args);
+      stopFns.push(r.stop);
+      return r;
+    },
+    filename: filenameTemplate,
+    stop: () => {
+      log("Stopping.");
+      stopFns.forEach(fn => fn());
+    }
+  };
 }
 
 module.exports = eventlog;

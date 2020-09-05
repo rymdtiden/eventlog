@@ -1,1 +1,1 @@
-module.exports = require('./src/eventlog');
+module.exports = require("./src/eventlog");

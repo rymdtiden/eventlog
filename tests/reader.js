@@ -302,9 +302,13 @@ describe("reader.js", () => {
             const filesLog = [];
 
             return new Promise(resolve => {
-              const { stop, liveMeta } = consume((event, meta) => {
-                log.push(event.type);
-              }, 1979052500000001, resolve);
+              const { stop, liveMeta } = consume(
+                (event, meta) => {
+                  log.push(event.type);
+                },
+                1979052500000001,
+                resolve
+              );
 
               liveMeta.on("open", file => filesLog.push(path.basename(file)));
 
@@ -344,9 +348,13 @@ describe("reader.js", () => {
             const filesLog = [];
 
             return new Promise(resolve => {
-              const { stop, liveMeta } = consume((event, meta) => {
-                log.push(event.type);
-              }, 1980082100000000, resolve);
+              const { stop, liveMeta } = consume(
+                (event, meta) => {
+                  log.push(event.type);
+                },
+                1980082100000000,
+                resolve
+              );
               liveMeta.on("open", file => filesLog.push(path.basename(file)));
               stopReader1 = stop;
             }).then(() => {
@@ -381,9 +389,13 @@ describe("reader.js", () => {
             const filesLog = [];
 
             return new Promise(resolve => {
-              const { stop, liveMeta } = consume((event, meta) => {
-                log.push(event.type);
-              }, 1980082100000003, resolve);
+              const { stop, liveMeta } = consume(
+                (event, meta) => {
+                  log.push(event.type);
+                },
+                1980082100000003,
+                resolve
+              );
               liveMeta.on("open", file => filesLog.push(path.basename(file)));
               stopReader2 = stop;
             }).then(() => {
@@ -415,9 +427,13 @@ describe("reader.js", () => {
             const filesLog = [];
 
             return new Promise(resolve => {
-              const { stop, liveMeta } = consume((event, meta) => {
-                log.push(event.type);
-              }, 1982122400001234, resolve);
+              const { stop, liveMeta } = consume(
+                (event, meta) => {
+                  log.push(event.type);
+                },
+                1982122400001234,
+                resolve
+              );
               liveMeta.on("open", file => filesLog.push(path.basename(file)));
               stopReader3 = stop;
             }).then(() => {
@@ -448,9 +464,13 @@ describe("reader.js", () => {
             const filesLog = [];
 
             return new Promise(resolve => {
-              const { stop, liveMeta } = consume((event, meta) => {
-                log.push(event.type);
-              }, 2012013100000000, resolve);
+              const { stop, liveMeta } = consume(
+                (event, meta) => {
+                  log.push(event.type);
+                },
+                2012013100000000,
+                resolve
+              );
               liveMeta.on("open", file => filesLog.push(path.basename(file)));
               stopReader4 = stop;
             }).then(() => {
@@ -476,9 +496,13 @@ describe("reader.js", () => {
             const filesLog = [];
 
             return new Promise(resolve => {
-              const { stop, liveMeta } = consume((event, meta) => {
-                log.push(event.type);
-              }, 2020010100000000, resolve);
+              const { stop, liveMeta } = consume(
+                (event, meta) => {
+                  log.push(event.type);
+                },
+                2020010100000000,
+                resolve
+              );
               liveMeta.on("open", file => filesLog.push(path.basename(file)));
               stopReader5 = stop;
             }).then(() => {

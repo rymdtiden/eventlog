@@ -23,7 +23,7 @@ const path = require("path");
 function reader(filenameTemplate) {
 	let log = debug("eventlog:reader");
 
-	function consume(callback, fromPosition) {
+	function consume(callback, fromPosition, onSync) {
 		const liveMeta = new EventEmitter();
 
 		let currentLogFile;
@@ -84,6 +84,7 @@ function reader(filenameTemplate) {
 			const logfile = currentLogFile;
 			const todaysLogfile = files.logfileForToday(filenameTemplate);
 
+			// Kommer inte det här att bli typ en miljard lyssnare efter ett tag?
 			if (logfile === todaysLogfile) time.on("dateChange", nextFileWatcher);
 
 			files.nextExistingLogfile(logfile, filenameTemplate).then(file => {
@@ -136,7 +137,7 @@ function reader(filenameTemplate) {
 				syncedAtRow = streamMeta.rows;
 				syncedAtTime = new Date().getTime();
 
-				endOfFileCheck(logfile);
+				endOfFileCheck();
 			});
 		}
 
@@ -149,19 +150,36 @@ function reader(filenameTemplate) {
 			readFromLogfile(logfile);
 		}
 
+		let lastSync = "";
+
 		function endOfFileCheck() {
+
+			const timeDiff = new Date().getTime() - syncedAtTime;
 			if (
 				syncedAtRow === currentStreamMeta.rows &&
-				syncedAtRow === nrOfProcessedRowsInCurrentFile &&
-				nextFile
+				syncedAtRow === nrOfProcessedRowsInCurrentFile
 			) {
-				const timeDiff = new Date().getTime() - syncedAtTime;
-				log("endOfFileCheck timeDiff %d", timeDiff);
+				if (nextFile) {
+					log("endOfFileCheck timeDiff %d", timeDiff);
 
-				if (timeDiff < 100) {
-					setTimeout(endOfFileCheck, 110 - timeDiff);
-				} else {
-					readFromNextFile();
+					if (timeDiff < 100) {
+						setTimeout(endOfFileCheck, 110 - timeDiff).unref();
+					} else {
+						readFromNextFile();
+					}
+				} else if (typeof onSync === "function") {
+					if (timeDiff < 100) {
+						setTimeout(endOfFileCheck, 110 - timeDiff).unref();
+					} else {
+						const syncInfo = {
+							file: currentLogFile,
+							rows: syncedAtRow
+						};
+						if (JSON.stringify(syncInfo) !== lastSync) {
+							lastSync = JSON.stringify(syncInfo);
+							onSync(syncInfo);
+						}
+					}
 				}
 			}
 		}

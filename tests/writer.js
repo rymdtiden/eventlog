@@ -12,10 +12,15 @@ describe("writer.js", () => {
       const { add, stop } = writer(
         disposableFile.fileSync({ name: "events-%y-%m-%d.log" })
       );
-      const { id, promise, logfile } = add({ type: "dummyevent" });
-      expect(id).to.be.a("string");
-      expect(promise.then).to.be.a("function");
-      stop();
+      return Promise.resolve()
+        .then(() => {
+          const { id, promise, logfile } = add({ type: "dummyevent" });
+          expect(id).to.be.a("string");
+          expect(promise.then).to.be.a("function");
+        })
+        .finally(() => {
+          stop();
+        });
     });
 
     it("should return a promise which should resolve with pos and prevPos", () => {
@@ -28,7 +33,9 @@ describe("writer.js", () => {
           const { id, pos, prevPos } = meta;
           expect(id).to.be.a("string");
         })
-        .finally(() => stop());
+        .finally(() => {
+          stop();
+        });
     });
 
     it("should write event to file", () => {
@@ -44,10 +51,12 @@ describe("writer.js", () => {
             meta: { id }
           });
         })
-        .then(() => stop());
+        .finally(() => {
+          stop();
+        });
     });
 
-    it("should switch write destination on date changes", () => {
+    it("should switch write destination on date changes", function() {
       const filenameTemplate = disposableFile.fileSync({
         name: "events-%y-%m-%d.log"
       });

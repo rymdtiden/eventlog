@@ -331,6 +331,7 @@ module.exports = {
   logfileDate,
   logfileForDate,
   logfileForToday,
+  logfileForPosition,
   nextExistingLogfile,
   touch
 };

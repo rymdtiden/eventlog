@@ -10,30 +10,33 @@ const writer = require("../src/writer");
 
 describe("reader.js", () => {
   describe("consume()", () => {
-    it("should be able to start reading from non-existing directory", () => {
+    it("should be able to start reading from non-existing directory", function() {
+      this.timeout(10000);
       const dir = path.join(disposableFile.dirSync(), "foo", "bar");
       const filenameTemplate = path.join(dir, "events-%y-%m-%d.log");
 
       const { consume } = reader(filenameTemplate);
 
       const log = [];
-      const { promise, stop } = consume((event, meta) => {
+      const { stop } = consume((event, meta) => {
         log.push({ event, meta });
       });
-      return promise
+      return Promise.resolve()
         .then(() => new Promise(resolve => setTimeout(resolve, 50)))
         .then(() => {
           const { add, stop } = writer(filenameTemplate);
           return add({ type: "justatest" }).promise.then(stop);
         })
-        .then(() => new Promise(resolve => setTimeout(resolve, 50)))
+        .then(() => new Promise(resolve => setTimeout(resolve, 1500)))
         .then(() => {
           expect(log.length).to.equal(1);
           expect(log[0].event.type).to.equal("justatest");
           expect(log[0].meta.pos).to.be.a("number");
           expect(log[0].meta.prevPos).to.be.an("undefined");
         })
-        .finally(() => stop());
+        .finally(() => {
+          stop();
+        });
     });
 
     it("should read all events from an existing logfile and be able to continue", function() {
@@ -81,9 +84,13 @@ describe("reader.js", () => {
               expect(log[6].event.type).to.equal("seventh");
               expect(log[7].event.type).to.equal("eighth");
             })
-            .finally(() => stop());
+            .finally(() => {
+              stop();
+            });
         })
-        .finally(() => stop());
+        .finally(() => {
+          stop();
+        });
     });
 
     it("should process all historic logfiles in correct order", function() {
@@ -213,6 +220,10 @@ describe("reader.js", () => {
                 ]);
               });
             })
+            .catch(err => {
+              console.log(err);
+              throw err;
+            })
             .finally(() => {
               stop();
             });
@@ -249,7 +260,10 @@ describe("reader.js", () => {
             counter++;
           },
           0,
-          resolve
+          () => {
+            resolve();
+            stop();
+          }
         );
       }).then(() => {
         expect(counter).to.equal(nr);
@@ -514,6 +528,7 @@ describe("reader.js", () => {
           })
           .finally(() => {
             try {
+              stop();
               stopReader0();
               stopReader1();
               stopReader2();
